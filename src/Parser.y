@@ -15,12 +15,12 @@ Conflicts:
    - 7 shift/reduce conflicts due to the overloading
      of `const' (t. qualifier and keyword.)
 
-ToDo: 
+ToDo:
   - fix above conflicts.
 
 -}
 module Parser ( parseIDL ) where
- 
+
 import LexM
 import Lex
 import IDLToken
@@ -29,7 +29,7 @@ import IDLUtils ( mkFunId, mkMethodId, toCConvAttrib,
                   mkGNUAttrib, toPackedAttrib, exprType )
 import BasicTypes
 import Literal
-import IO ( hPutStrLn, stderr )
+import System.IO ( hPutStrLn, stderr )
 {-
 BEGIN_GHC_ONLY
 import GlaExts
@@ -185,15 +185,15 @@ attr_defn    :: { Defn }
 
 dispinterface :: { Defn }
    : dispinterface_hdr '{'
-       PROPERTIES ':' attr_id_list 
+       PROPERTIES ':' attr_id_list
        METHODS    ':' method_decls
      '}'    {% let (Id i) = $1 in addIfaceTypedef i >>= \ v -> return (DispInterface v $5 (reverse $8)) }
-   | dispinterface_hdr '{' 
+   | dispinterface_hdr '{'
        INTERFACE simple_declarator ';'
      '}'    {% let (Id i) = $1 in addIfaceTypedef i >>= \ v -> return (DispInterfaceDecl v $4) }
 
 attr_id_list  :: { [([Attribute], Type, Id)] }
-   : {- empty -} 			            { [] } 
+   : {- empty -} 			            { [] }
    | attr_id_list opt_attributes type_spec declarator ';' { ($2,$3,$4):$1 }
 
 coclass_members :: { [CoClassMember] }
@@ -212,10 +212,10 @@ opt_coclass_attrs :: { [Attribute] }
 
 interface_dcl :: { Defn }
    : interface_hdr { Forward $1 }
-   | interface_hdr inheritance_spec '{' exports '}' 
+   | interface_hdr inheritance_spec '{' exports '}'
        { Interface $1 $2 (reverse $4) }
 
-{- 
+{-
   We eagerly add the name of an interface as a type name, so
   that typedefs inside the interface body can refer to it.
 -}
@@ -266,7 +266,7 @@ pragma_dcl  :: { Defn }
    : PRAGMA 		       { Pragma $1 }
    | INCLUDE_START	       { IncludeStart $1 }
    | INCLUDE_END               { IncludeEnd }
-   
+
 define :: { Defn }
    : HDEFINE ID const_expr     { Constant (Id $2) [] (exprType (TyInteger Natural) $3) $3 }
 
@@ -274,7 +274,7 @@ string_lit_list :: { [String] }
    : STRING_LIT			  { [ $1 ] }
    | STRING_LIT ',' string_lit_list { ($1 : $3) }
 
-{- 
+{-
  Not using type_spec for constant types minimises
  the shift/reduce conflicts (i.e., no CONST qualifiers
  allowed below.)
@@ -283,7 +283,7 @@ const_type    :: { Type }
    : integer_ty         { $1 }
    | CHAR               { TyChar  }
    | WCHAR              { TyWChar }
-   | FLOAT              { TyFloat $1 } 
+   | FLOAT              { TyFloat $1 }
    | VOID		{ TyVoid }
    | VOID '*'           { TyPointer TyVoid }
    | CHAR '*'           { TyString Nothing }
@@ -321,7 +321,7 @@ const_type_cast    :: { Type }
    : integer_ty         { $1 }
    | CHAR               { TyChar  }
    | WCHAR              { TyWChar }
-   | FLOAT              { TyFloat $1 } 
+   | FLOAT              { TyFloat $1 }
    | VOID		{ TyVoid }
    | string_type        { $1 }
    | const_type '[' ']' { TyArray $1 [] }
@@ -347,7 +347,7 @@ cond_expr     :: { Expr }
 log_or_expr   :: { Expr }
    : log_and_expr			{ $1 }
    | log_or_expr '||' log_and_expr	{ Binary LogOr $1 $3 }
-   
+
 log_and_expr  :: { Expr }
    : or_expr			 { $1 }
    | log_and_expr '&&' or_expr   { Binary LogAnd $1 $3 }
@@ -413,7 +413,7 @@ primary_expr  :: { Expr }
    | '(' const_expr ')'  { $2 }
 
 type_dcl      :: { Defn }
-   : mb_gnu_attributes TYPEDEF opt_attributes type_spec declarators mb_gnu_attributes 
+   : mb_gnu_attributes TYPEDEF opt_attributes type_spec declarators mb_gnu_attributes
      {% let decls = reverse $5 in addTypes decls >> return (Typedef $4 $3 decls) }
 
    | attributes struct_or_union_or_enum_spec               { Attributed $1 (TypeDecl $2) }
@@ -453,8 +453,8 @@ type_specifier  :: { Type }
    | UNSIGNED CONST signed_type_specifier  { TyApply (TySigned False) $3 }
    | integer SIGNED INT   { TyApply (TySigned True)  $1 }
    | integer UNSIGNED INT { TyApply (TySigned False) $1 }
-   | ID                   { TyName $1 Nothing } 
-   | TYPE                 { TyName $1 Nothing } 
+   | ID                   { TyName $1 Nothing }
+   | TYPE                 { TyName $1 Nothing }
    | ITYPE		{ $1 }
    | SAFEARRAY safearray_type_spec ')' { TySafeArray $2 }  {- the oparen is part of the SAFEARRAY lexeme..-}
    | struct_or_union_spec { $1 }
@@ -486,10 +486,10 @@ struct_type :: { Type }
      : STRUCT simple_declarator '{' member_list '}' mb_gnu_attributes { TyStruct (Just $2) (reverse $4) (toPackedAttrib $6) }
      | STRUCT            '{' member_list '}'        mb_gnu_attributes { TyStruct Nothing (reverse $3) (toPackedAttrib $5) }
      | STRUCT simple_declarator                     { TyStruct (Just $2) [] Nothing }
-              
+
 
 union_type           :: { Type }
-     : UNION switch_id SWITCH  '(' switch_type_spec identifier ')' 
+     : UNION switch_id SWITCH  '(' switch_type_spec identifier ')'
        switch_id '{' switch_body  '}' { TyUnion $2 $5 $6 $8 (reverse $10) }
 
      | UNION switch_id  '{' member_or_switch_list '}' mb_gnu_attributes
@@ -535,7 +535,7 @@ pointer_declarator :: { Id }
      | pointer gnu_attributes direct_declarator {  Pointed $1 (toCConvAttrib $2 $3) }
 
 array_declarator :: { Id }
-     : direct_declarator '[' ']'             { ArrayId $1 []   } 
+     : direct_declarator '[' ']'             { ArrayId $1 []   }
      | direct_declarator '[' '*' ']'         { ArrayId $1 []   }
      | direct_declarator '[' const_expr ']'  { ArrayId $1 [$3] }
      | direct_declarator '[' primary_expr '.' '.' primary_expr ']'  { ArrayId $1 [$3,$6] }
@@ -619,7 +619,7 @@ expr_list :: { [Expr] }
 
 enum_type	 :: { Type }
    : ENUM '{' enumerators opt_comma '}' { TyEnum Nothing (reverse $3) }
-   | ENUM identifier '{' 
+   | ENUM identifier '{'
           enumerators opt_comma
      '}'                    { TyEnum (Just $2) (reverse $4) }
    | ENUM identifier        { TyEnum (Just $2) [] }
@@ -630,8 +630,8 @@ enumerators      :: { [(Id, [Attribute], Maybe Expr)] }
    | enumerators ',' enumerator { $3 : $1 }
 
 enumerator  :: { (Id, [Attribute], Maybe Expr) }
-   : identifier	                           { ($1, [], Nothing) } 
-   | attributes identifier                 { ($2, $1, Nothing) } 
+   : identifier	                           { ($1, [], Nothing) }
+   | attributes identifier                 { ($2, $1, Nothing) }
    | identifier '=' const_expr             { ($1, [], Just $3) }
    | attributes identifier '=' const_expr  { ($2, $1, Just $4) }
 
@@ -700,7 +700,7 @@ attr_param	:: { AttrParam }
     | SIGNED TYPE                     { (AttrLit (TypeConst ("signed " ++ $2))) }
     | '{' LITERAL '}'                 { AttrLit $2 }  {- just a guid here, please! -}
     | '*' attr_param		      { (AttrPtr $2)  }
-    
+
 op_type_spec   :: { Type }
     : type_spec_no_leading_qual    { $1 }
     | string_type                  { $1 }
@@ -751,7 +751,7 @@ a_word :: { String }
 
 identifier :: { Id }
     : ID   { (Id $1) }
-    
+
 semi ::     { () }
     : error { () }
     | ';'   { () }
@@ -781,7 +781,7 @@ addIfaceTypedef :: String -> LexM Id
 addIfaceTypedef nm = addTypedef nm >> return (Id nm)
 
 mkBitField :: String -> Literal -> Int
-mkBitField nm l = 
+mkBitField nm l =
   case l of
     IntegerLit (ILit _ i) -> fromInteger i
     _ -> error ("bitfield " ++ show nm ++ " not an int.")

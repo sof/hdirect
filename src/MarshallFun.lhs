@@ -28,7 +28,7 @@ import MarshallServ   ( cgServMethod )
 import MarshallMethod ( cgMethod )
 import MarshallCore
 
-import Maybe
+import Data.Maybe
 
 \end{code}
 
@@ -59,14 +59,14 @@ marshallFun mb_mod_nm i (FunTy cc res ps)
  where
   exportFun     = isJust mb_mod_nm
 
-  imp_decls = 
+  imp_decls =
     [ (u_name, u_decl)
     , (i_name, i_decl)
     , (re_name, re_decl)
     , (s_name,  s_decl)
     ]
 
-  exp_decls = 
+  exp_decls =
     [ (m_name, m_decl)
     , (e_name, e_decl)
     , (wr_name, wr_decl)
@@ -82,11 +82,11 @@ marshallFun mb_mod_nm i (FunTy cc res ps)
   name      = mkVarName (idName i)
   v_name    = mkHaskellVarName (idName i)
 
-  m_name 
+  m_name
     | not exportFun = qName (prefix marshallPrefix name)
     | otherwise     = qName (appendStr "_proxy" name)
 
-  e_name 
+  e_name
     | not exportFun = qName (prefix "export_" name)
     | otherwise     = m_name
   i_name    = qName (prefix "import_" name)
@@ -108,10 +108,10 @@ marshallFun mb_mod_nm i (FunTy cc res ps)
 
   m_decl    = m_tysig `andDecl` m_def
   m_tysig   = genTypeSig m_name mb_c m_type
-  m_def     
+  m_def
     | not exportFun = funDef m_name [patVar v_name] m_rhs
     | otherwise     = funDef m_name [] m_rhs
-  m_rhs     
+  m_rhs
     | not exportFun = funApply (var e_name) [funApply (var w_name) [var v_name]]
     | otherwise     = funApply (var w_name) [varName f_name]
 
@@ -125,7 +125,7 @@ marshallFun mb_mod_nm i (FunTy cc res ps)
               funTy ty                 $
 	      io_unit
   wr_def    = funDef wr_name [patVar "fptr", patVar v_name] wr_rhs
-  wr_rhs    = 
+  wr_rhs    =
      bind (funApply (var m_name) [var v_name]) (var "ptr") $
      funApp w_ptr [var "fptr", var "ptr"]
 
@@ -134,7 +134,7 @@ marshallFun mb_mod_nm i (FunTy cc res ps)
   e_prim_ty = funTy base_ty (io (tyPtr ty))
 
    {- Name of the *Haskell* function. -}
-  f_name    = 
+  f_name    =
        case (findAttribute "entry" (idAttributes i)) of
          Just (Attribute _ (ParamLit (StringLit x) : _)) -> mkQVarName mb_mod_nm x
 	 _ -> mkQVarName mb_mod_nm (idName i)

@@ -6,7 +6,7 @@
 #
 
 ifndef IHC
-IHC = $(TOP)/src/ihc
+IHC = $(TOP)/dist/build/hdirect/hdirect
 endif
 
 #
@@ -78,7 +78,7 @@ CCDLL_LIBS=ole32.lib oleaut32.lib uuid.lib advapi32.lib user32.lib winmm.lib url
 STUB_OBJ_SUFFIX=obj
 else
 ifeq "$(FOR_WIN32)" "YES"
-CCDLL=dllwrap 
+CCDLL=dllwrap
 CCDLL_OPTS += --def HugsMod.def
 CCDLL_OPTS += -mno-cygwin --target=i386-mingw32
 CCDLL_LIBS += -loleaut32 -lole32 -luser32

@@ -18,18 +18,19 @@ module LibUtils
 	, prelude
 	, maybe_module
 	, autoLib
-	, ioExts
 	, intLib
 	, wordLib
---	, addrLib
 	, foreignLib
 	, arrayLib
+	, ioRefLib
+
 	, jniLib
 	, wStringLib
 	, safeArrayLib
 	, ptrLib
 	, foreignPtrLib
-	
+	, stablePtrLib
+
 	, iDispatch
 	, iUnknown
 	, iUnknownFO
@@ -55,7 +56,7 @@ module LibUtils
 	, intToAddr
 	, mkWString
 	, lengthWString
-	
+
 	, castPtrName
 	, castFPtrName
 	, withForeignPtrName
@@ -66,7 +67,7 @@ module LibUtils
 	, returnHR
 	, invokeIt
 	, primInvokeIt
-	
+
 	, getIfaceState
 	, createComVTable
 	, createDispVTable
@@ -76,11 +77,11 @@ module LibUtils
 	, mkDispInterface
 	, mkDualInterface
 	, comInterfaceTy
-	
+
 	, componentInfo
 	, mkComponentInfo
 	, hasTypeLib
-	
+
 	, mkForeignObj
 
 	, trivialFree
@@ -110,7 +111,7 @@ module LibUtils
 	, ptrName
 	, funPtrName
 	, foreignPtrName
-	
+
 	, free
 	, freeRef
 	, doThenFree
@@ -124,7 +125,7 @@ module LibUtils
 	, prelReturn
 	, bindName
 	, bind_Name
-	
+
         , xorName
         , orName
         , andName
@@ -157,7 +158,7 @@ module LibUtils
 	, unmarshStruct
 	, marshUnion
 	, unmarshUnion
-	
+
 	, dollarName
 	, inArgName
 	, inIUnknownArgName
@@ -166,7 +167,7 @@ module LibUtils
 	, retValName
 	, applyName
 	, mkDispMethod
-	
+
 	, enumClass
 	, eqClass
 	, showClass
@@ -174,7 +175,7 @@ module LibUtils
 
 	, fromEnumName
 	, toEnumName
-	
+
 	, enumToInt
 	, enumToFlag
 	, unboxInt
@@ -186,7 +187,7 @@ module LibUtils
 	, orFlagsName
 	, orFlagName
 	, flagsClass
-	
+
 	, inVariantName
 	, resVariantName
 	, defaultVariantName
@@ -205,11 +206,15 @@ module LibUtils
 	, sumName
 	, fromIntegralName
 	, lengthName
-	
+
 	, true
 	, false
-	
+
 	, uPerformIO
+
+	, ioRefName
+	, readIORefName
+	, writeIORefName
 
 	, marshallPrefix
 	, marshallRefPrefix
@@ -221,7 +226,7 @@ module LibUtils
 	, allocPrefix
 	, freePrefix
 	, copyPrefix
-	
+
 	, marshallMaybe
 	, writeMaybe
 	, readMaybe
@@ -232,9 +237,9 @@ module LibUtils
 	, mkVtblOffsetName
 	, mkCLSIDName
 	, mkLIBIDName
-	
+
 	, defaultCConv
-	
+
 	, invokeMethod
 	, invokeStaticMethod
 	, invokeInterfaceMethod
@@ -254,14 +259,14 @@ module LibUtils
 	, makeClassName
 	, mkClassName
 	, newFPointer
-	
+
 	, orbLib
 	, cObject
-	
+
        ) where
 
 import BasicTypes
-import Opts ( optHaskellToC, optH1_4, 
+import Opts ( optHaskellToC, optH1_4,
 	      optCorba
 	    )
 
@@ -271,29 +276,30 @@ Where it's at - the different modules we may end up
 generating imports from:
 
 \begin{code}
-hdirectLib, bitsLib, comLib, comServLib, listLib, ptrLib, foreignPtrLib :: Maybe String
+hdirectLib, bitsLib, comLib, comServLib, listLib, ptrLib, foreignPtrLib, stablePtrLib :: Maybe String
 hdirectLib = Just "HDirect"
-bitsLib = Just "Bits"
+bitsLib = Just "Data.Bits"
 comLib  = Just "Com"
 comServLib  = Just "ComServ"
-listLib = Just "List"
+listLib = Just "Data.List"
 ptrLib  = Just "Foreign.Ptr"
 foreignPtrLib = Just "Foreign.ForeignPtr"
+stablePtrLib = Just "Foreign.StablePtr"
 
-comDll, prelude, prelGHC, maybe_module, autoLib, ioExts :: Maybe String
+comDll, prelude, prelGHC, maybe_module, autoLib, system_io_unsafe :: Maybe String
 comDll  = Just "ComDll"
 prelude = Just "Prelude"
 prelGHC = Just "PrelGHC"
-maybe_module = Just "Maybe"
+maybe_module = Just "Data.Maybe"
 autoLib = Just "Automation"
-ioExts  = Just "System.IO"
+system_io_unsafe  = Just "System.IO.Unsafe"
 
-intLib, wordLib, foreignLib, arrayLib :: Maybe String
-intLib  = Just "Int"
-wordLib = Just "Word"
---addrLib = Just "Addr"
+intLib, wordLib, foreignLib, arrayLib, ioRefLib :: Maybe String
+intLib  = Just "Data.Int"
+wordLib = Just "Data.Word"
 foreignLib = Just "Foreign"
-arrayLib   = Just "Array"
+arrayLib   = Just "Data.Array"
+ioRefLib   = Just "Data.IORef"
 
 stdDispatchLib, wStringLib, jniLib, orbLib, safeArrayLib :: Maybe String
 stdDispatchLib = Just "StdDispatch"
@@ -538,7 +544,16 @@ true	      = mkQualName prelude "True"
 false	      = mkQualName prelude "False"
 
 uPerformIO :: QualName
-uPerformIO    = mkQualName ioExts  "unsafePerformIO"
+uPerformIO    = mkQualName system_io_unsafe  "unsafePerformIO"
+
+ioRefName :: QualName
+ioRefName = mkQualName ioRefLib "IORef"
+
+readIORefName :: QualName
+readIORefName = mkQualName ioRefLib "readIORef"
+
+writeIORefName :: QualName
+writeIORefName = mkQualName ioRefLib "writeIORef"
 
 mkWString :: QualName
 mkWString     = mkQualName wStringLib "mkWideString"
@@ -685,14 +700,14 @@ The method calling convention used if none specified.
 
 \begin{code}
 defaultCConv :: CallConv
-defaultCConv 
+defaultCConv
  | optHaskellToC || optCorba = Cdecl
  | otherwise     = Stdcall
 \end{code}
 
 \begin{code}
 raiseIOException :: QualName
-raiseIOException 
+raiseIOException
   | optH1_4   = prelFail
   | otherwise = prelIOError
 \end{code}

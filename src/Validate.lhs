@@ -5,8 +5,8 @@
 Validating fragments of IDL.
 
 \begin{code}
-module Validate 
-	( 
+module Validate
+	(
 	  validateParam
 	) where
 
@@ -31,7 +31,7 @@ correct the type.
 validateParam :: String -> Param -> Param
 validateParam msg p =
   case paramMode p of
-    Out -> 
+    Out ->
       case paramType p of
        Pointer pt isExp t | optCom && isIfaceTy t && not (isIfacePtr t) ->
                 warnWrongOutParam msg "out"
@@ -40,7 +40,7 @@ validateParam msg p =
 		       		   , paramOrigType=(Pointer pt isExp (Pointer Ref True t))
 		       		   }
 		   | otherwise -> p
-       t@Iface{} | optCom -> 
+       t@Iface{} | optCom ->
                 warnWrongOutParam msg "out"
 				  "pointer to an interface pointer (as it needs to be.)"
 		      		  p{ paramType=(Pointer Ref True (Pointer Ref True t))
@@ -60,20 +60,20 @@ validateParam msg p =
        		           }
     In ->
       case paramType p of
-       ty@Iface{} | optCom -> 
+       ty@Iface{} | optCom ->
                 warnWrongOutParam msg "in"
 				  "*pointer* to an interface (as it needs to be.)"
 		      		  p{ paramType=(Pointer Ref True ty)
 		       		   , paramOrigType=(Pointer Ref True ty)
 		       		   }
        _ -> p
-    _ -> p	 		   
+    _ -> p
 \end{code}
 
 \begin{code}
 warnWrongOutParam :: String -> String -> String -> a -> a
-warnWrongOutParam prefix pkind kind cont =
-   trace ("Warning: [" ++ pkind ++ "] parameter " ++ show prefix ++
+warnWrongOutParam pre pkind kind cont =
+   trace ("Warning: [" ++ pkind ++ "] parameter " ++ show pre ++
 	  " is not a " ++ kind ++ "\n Correcting it for you.\n")
 	 cont
 

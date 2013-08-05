@@ -7,9 +7,9 @@
 
 Pass to construct import lists from a list of Haskell
 declarations.
- 
+
 \begin{code}
-module MkImport 
+module MkImport
        (
         mkImportLists
        ) where
@@ -21,7 +21,7 @@ import Env
 import LibUtils  ( bitsLib, prelude, fromEnumName, toEnumName )
 import BasicTypes
 
-import List   ( nub )
+import Data.List ( nub )
 import Opts   ( optNoImportLists, optQualInstanceMethods, optNoQualNames,
 		optLongLongIsInteger )
 import Utils  ( concMaybe )
@@ -34,7 +34,7 @@ mkImportLists :: String
 	      -> [(String, Bool, [HIEEntity])]
 mkImportLists local_nm hs_imports decls = import_list
   where
-   import_list = 
+   import_list =
 		    -- sigh, to avoid pointless trouble with the generated
 		    -- sources due to Hugs' lack of support for qualified
 		    -- instance names, we optionally allow method names
@@ -48,8 +48,8 @@ mkImportLists local_nm hs_imports decls = import_list
 		    -- into scope.
 		    --
 		    -- A hack that doesn't solve the general problem.
-		    -- 
-   		 (if not optQualInstanceMethods && not optNoQualNames then 
+		    --
+   		 (if not optQualInstanceMethods && not optNoQualNames then
 		     (("Prelude", False, [ ieValue (qName fromEnumName)
 		     			 , ieValue (qName toEnumName)
 					 ]):)
@@ -87,10 +87,10 @@ mkImportLists local_nm hs_imports decls = import_list
    go _                        env = env
 
 gatherTyImports :: Type -> Env String (Bag HIEEntity) -> Env String (Bag HIEEntity)
-gatherTyImports ty env = 
+gatherTyImports ty env =
  case ty of
-   TyVar _ tv     -> addQName (\ nm -> ieType nm True) tv env 
-   TyCon tc	  -> addQName (\ nm -> ieType nm True) tc env 
+   TyVar _ tv     -> addQName (\ nm -> ieType nm True) tv env
+   TyCon tc	  -> addQName (\ nm -> ieType nm True) tc env
    TyApply f args -> foldr gatherTyImports env (f:args)
    TyList t	  -> gatherTyImports t env
    TyTuple es	  -> foldr gatherTyImports env es
@@ -98,15 +98,15 @@ gatherTyImports ty env =
    TyFun f a	  -> gatherTyImports a (gatherTyImports f env)
 
 addQName :: (String -> a) -> QualName -> Env String (Bag a) -> Env String (Bag a)
-addQName f qn env = 
+addQName f qn env =
    case concMaybe (qDefModule qn) (qModule qn) of
      Nothing  -> env
      v@(Just md)
 	    -- don't record what we're picking up from the Prelude.
-        | v == prelude -> env  
+        | v == prelude -> env
 	| otherwise    -> addToEnv_C (unionBags) env md nm
        where
-        nm 
+        nm
 	 | optNoImportLists = emptyBag
 	 | otherwise        = unitBag (f (qName qn))
 
@@ -116,7 +116,7 @@ gatherTyDeclImports (TyDecl _ _ _ ds _) env = foldr gatherConDeclImport env ds
  where
   gatherConDeclImport (ConDecl _ ts) env1 = foldr gatherTyImports env1 (map debang ts)
   gatherConDeclImport (RecDecl _ fs) env1 = foldr gatherTyImports env1 (map (debang.snd) fs)
-  
+
   debang (Banged t)   = t
   debang (Unbanged t) = t
 
@@ -148,7 +148,7 @@ gatherExprImports e env =
    Case e1 alts  -> foldr gatherAltImports (gatherExprImports e1 env) alts
    If e1 e2 e3   -> gatherExprImports e1 (gatherExprImports e2 (gatherExprImports e3 env))
    Let binds e1  -> foldr gatherBindingImports (gatherExprImports e1 env) binds
-   Var v 	 -> addQName (ieValue) v env 
+   Var v 	 -> addQName (ieValue) v env
    Con c	 -> addQName (ieValue) c env
    WithTy e1 ty  -> gatherExprImports e1 (gatherTyImports ty env)
    _		 -> env
@@ -175,8 +175,8 @@ gatherExprImports e env =
 	  Shift L -> addBitsImp "shiftL" env1
 	  Shift R -> addBitsImp "shiftR" env1
 	  _ -> env1
-	  
-	  
+
+
      addBitsImp nm env1 = addQName ieValue (mkQVarName bitsLib nm) env1
 
 \end{code}

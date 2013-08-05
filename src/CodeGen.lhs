@@ -28,12 +28,7 @@ import qualified CustomAttributes
 
 import BasicTypes
 import Literal
-import AbstractH hiding (Type(..), Expr(..),CaseAlt(..))
-import qualified AbstractH as Haskell ( HDecl(..),
-					TyDecl(..),
-					ConDecl(..),
-					BangType(..)
-				      )
+import AbstractH hiding ( Type(..), Expr(..), CaseAlt(..) )
 import AbsHUtils
 import MkImport      ( mkImportLists )
 import LibUtils
@@ -54,12 +49,13 @@ import CgMonad
 import CoreIDL
 import CoreUtils
 import Attribute
-import List  ( partition, intersperse, isPrefixOf )
 import Utils ( dropSuffix, trace, basename, split,
 	       splitdir, prefixDir, notNull
 	     )
-import Maybe ( mapMaybe, isJust )
-import Monad ( when )
+
+import Data.List  ( partition, intersperse, isPrefixOf )
+import Data.Maybe ( mapMaybe, isJust )
+import Control.Monad ( when )
 
 import Env
 \end{code}
@@ -74,7 +70,7 @@ A translation unit can at the toplevel consist of:
  - one or more (disp)interfaces/coclasses.
 
 IDL grouping declarations map onto Haskell modules as follows:
- 
+
  - modules and libraries get their own Haskell module.
  - optionally, each (disp)interface/coclass can be put into
    a file of their own. (doing this eases the problem of
@@ -101,8 +97,8 @@ codeGen (o_fname, mname) iso_env iface_env decls =
   liftOut [] = []
   liftOut (m@(nm, has_struct, ds) : ms) =
      case break isHMod ds of
-       (ls,[x,HMod md@(HModule nm1 _ _ _ _)]) -> 
-		    (nm, has_struct, ls ++ [x]) : 
+       (ls,[x,HMod md@(HModule nm1 _ _ _ _)]) ->
+		    (nm, has_struct, ls ++ [x]) :
 		    (nm1 ++ ".hs", False, [HMod md]) : liftOut ms
        _ -> m : liftOut ms
 
@@ -111,11 +107,11 @@ codeGen (o_fname, mname) iso_env iface_env decls =
 
    -- The set of modules to generate. If there's any leftovers at the
    -- top (i.e., stuff that appear outside a module/library/interface etc. grouping),
-   -- we put these bits into the top_module. In the one-module-per-interface 
+   -- we put these bits into the top_module. In the one-module-per-interface
    -- case, this means that for typedefs that appear inside interfaces will
    -- be lifted out and be generated with the outermost module (arguably they
    -- shouldn't be lifted out, but that's how things are organised at the moment.)
-  modules = 
+  modules =
    case mods_and_libs of
      [_] -> [one_module] -- make sure we emit everything.
      _   ->
@@ -123,25 +119,25 @@ codeGen (o_fname, mname) iso_env iface_env decls =
         [] -> mods_and_libs
         _  -> top_module : mods_and_libs
 
-  toStdOut = 
+  toStdOut =
     case o_fname of
       Right "-" -> True
       _		-> False
 
   -- use output filename to generate a plausible looking
   -- Haskell module name.
-  (top_module_name, output_fname) = 
+  (top_module_name, output_fname) =
      case mname of
        Just x -> (x, snd ofnames)
        _      -> ofnames
     where
      ofnames =
          case o_fname of
-          Right "-" -> 
-	  	case mods_and_libs of 
+          Right "-" ->
+	  	case mods_and_libs of
 		   ((_,m,_):_) -> (m, "-")
 		   _	       -> ("Anon", "-")
-	  Left  x   -> let 
+	  Left  x   -> let
 	  		(_,base) = splitdir x
 			y = mkHaskellTyConName (dropSuffix base)
 		       in
@@ -149,7 +145,7 @@ codeGen (o_fname, mname) iso_env iface_env decls =
 	  Right x   ->
 	    case mods_and_libs of
 	      [(_,m,_)] -> let
-	                    (dir,_) = splitdir x 
+	                    (dir,_) = splitdir x
 	      		   in (m, prefixDir dir (m ++ ".hs"))
 
 	      _	        -> (mkModName x, x)
@@ -189,7 +185,7 @@ codeGen (o_fname, mname) iso_env iface_env decls =
 
   flattened_decls = flattenDecls decls
 
-  mkModuleLibName d 
+  mkModuleLibName d
     | toStdOut  = ("-", hnm)
     | otherwise = (hnm ++ ".hs", hnm)
       where
@@ -203,17 +199,17 @@ codeGen (o_fname, mname) iso_env iface_env decls =
 \begin{code}
 cGen :: Env String [(Result, [Param])]
      -> Env String (Maybe Id)
-     -> (String, String, [Decl]) 
+     -> (String, String, [Decl])
      -> (String, Bool, [HTopDecl])
 cGen iso_env iface_env (oname, mod_name, ds) = (oname, flg, ds')
  where
   (ds',flg) = foldr mkHTop ([],False) ds
 
-  mkHTop d (acc, has_structs) = 
+  mkHTop d (acc, has_structs) =
    case d of
      Library i ms ->
        case (runCgM iso_env iface_env (withDeclName (idName i) (cgLibrary i ms))) of
-        (decl, expo, imps, flg1, has_prim) -> 
+        (decl, expo, imps, flg1, has_prim) ->
 	  let qual_imps = mkImportLists mod_name (getHsImports i) [decl]
 	      real_imps = qual_imps ++ imps
 
@@ -221,16 +217,16 @@ cGen iso_env iface_env (oname, mod_name, ds) = (oname, flg, ds')
 	  (modDecl i has_prim [decl] real_imps expo : acc, has_structs || flg1)
      DispInterface i _ _ _ ->
        case (runCgM iso_env iface_env (withIfaceDeclName (idName i) (cgDecl d))) of
-         (decl, expo, imps, flg1, has_prim) -> 
-	   let qual_imps = mkImportLists mod_name (getHsImports i) [decl] 
+         (decl, expo, imps, flg1, has_prim) ->
+	   let qual_imps = mkImportLists mod_name (getHsImports i) [decl]
 	       real_imps = qual_imps ++ imps
 	   in
 	   (modDecl i has_prim [decl] real_imps expo : acc, has_structs || flg1)
      Interface i is_ref inherit _
        | not is_ref ->
          case (runCgM iso_env iface_env (withIfaceDeclName (idName i) (cgDecl d))) of
-           (decl, expo, imps, flg1, has_prim) -> 
-	     let qual_imps = mkImportLists mod_name (getHsImports i) [decl] 
+           (decl, expo, imps, flg1, has_prim) ->
+	     let qual_imps = mkImportLists mod_name (getHsImports i) [decl]
 	         real_imps = qual_imps ++ imps
 
 		 attrs	    = idAttributes i
@@ -239,7 +235,7 @@ cGen iso_env iface_env (oname, mod_name, ds) = (oname, flg, ds')
 		 i'	    = i{idAttributes=new_attrs}
 		 (acc', has_structs')
 		    | not optOneModulePerInterface || null iface_deps = (acc, has_structs)
-		    | otherwise	 = 
+		    | otherwise	 =
 			case mkHTop (Interface i' False inherit []) (acc, has_structs) of
 			  (HMod (HModule nm a b c d1) : ls, e) ->
 			     (HMod (HModule (nm ++ "Ty") a b c d1) : ls , e)
@@ -247,9 +243,9 @@ cGen iso_env iface_env (oname, mod_name, ds) = (oname, flg, ds')
 	     in
 	     (modDecl i has_prim [decl] real_imps expo : acc', has_structs' || flg1)
        | otherwise -> (acc, has_structs)
-     CoClass{} -> 
+     CoClass{} ->
        case (runCgM iso_env iface_env (cgDecl d)) of
-         (decl, expo, imps, flg1, has_prim) -> 
+         (decl, expo, imps, flg1, has_prim) ->
 	   let qual_imps = mkImportLists mod_name (getHsImports (declId d)) [decl]
 	       real_imps = qual_imps ++ imps
 
@@ -262,9 +258,9 @@ cGen iso_env iface_env (oname, mod_name, ds) = (oname, flg, ds')
   		        (map (\ (x,_,y) -> hExport x y) expo)
   		        (map (\ (x,y,z) -> hImport x y z) real_imps)
  		        decl : acc, has_structs || flg1)
-     Module i ms -> 
+     Module i ms ->
        case (runCgM iso_env iface_env (withDeclName (idName i) (cgModule i ms))) of
-         (decl, expo,imps,flg1, has_prim) -> 
+         (decl, expo,imps,flg1, has_prim) ->
 	    let qual_imps = mkImportLists mod_name (getHsImports i) [decl]
 	        real_imps = qual_imps ++ imps
 	    in
@@ -297,20 +293,20 @@ don't have the header file already available.)
 generateHeader :: String -> [Decl] -> [(String, Decl)]
 generateHeader o_fname decls
  | not optGenHeader = []
- | otherwise	    = 
+ | otherwise	    =
     case optOutputHTo of
-      (x:_) -> 
+      (x:_) ->
          let
 	  nm = dropSuffix x
 	 in
 	 [(oname, Module (mkId nm nm Nothing []) decls)]
-      _ -> 
+      _ ->
        case (concatMap mkHeaderDecls decls) of
         []      -> [(oname, Module (mkId oname oname Nothing []) decls)]
         [(_,s)] -> [(oname, s)]
         ls	-> ls
  where
-  oname = 
+  oname =
     case optOutputHTo of
       (x:_) -> x
       _ ->
@@ -339,16 +335,16 @@ cgDecl d =
  case d of
    Typedef n t _	            -> cgTypedef n t
    Constant i t o_t e	            -> cgConstant i t o_t e
-   Interface i _ inherit decls -> 
-     withIfaceInherit (map fst inherit) $ 
+   Interface i _ inherit decls ->
+     withIfaceInherit (map fst inherit) $
      hoistInClass (idName i)		$ \ mb_cls -> do
      cls_d <-
          {-
 	   Check to see if we should include a CLSID declaration
 	   as well. Do this in the case where we've got
-	     
+
  	     interface _A { ... }; coclass A { interface _A; };
-           
+
            and A has the only use of _A. Useful in one-module-per-interface mode,
 	   as it avoids creating a (v simple) module for the coclass.
 	 -}
@@ -367,15 +363,15 @@ cgDecl d =
      forClient <- getClientFlag
      let is_source = hasSourceAttribute (idAttributes i)
      setSourceIfaceFlag is_source $ do
-      dserv <- 
+      dserv <-
         if (is_source && optIgnoreSourceIfaces) then
            return emptyDecl
-        else 
+        else
           if (is_source && forClient) || (not forClient && not is_source) then
               marshallServ i inherit decls
            else
              cgInterface i inherit decls
-      return (cls_d `andDecl` dserv) 
+      return (cls_d `andDecl` dserv)
     where
       deps = filterAttributes (idAttributes i) ["depender"]
 
@@ -386,7 +382,7 @@ cgDecl d =
         k <- getInterfaceFlag
         case k of
 	  StdFFI -> getDeclName $ \ nm ->
-		    marshallFun (Just nm) i (FunTy cc res ps) 
+		    marshallFun (Just nm) i (FunTy cc res ps)
           _ | optJNI    ->  cgJServMethod i res ps
 	    | otherwise ->  do
 	        isInDisp <- isInDispInterface
@@ -432,7 +428,7 @@ implemented as follows:
 where <tt/Con[]/ is the mapping from an IDL name to a
 Haskell type constructor name and <tt/DT[]/ uses the IDL
 type to determine what kind of Haskell user-defined data
-type declaration to use. 
+type declaration to use.
 
 The meat of the translation is done by the <tt/T[]/ mapping
 scheme, which is implemented by <tt/toHaskellTy/ in @MarshallType@.
@@ -449,7 +445,7 @@ cgTypedef tdef_id ty
   where
     attrs = idAttributes tdef_id
     hname = mkHaskellTyConName (idName tdef_id)
-    
+
     isNewType = attrs `hasAttributeWithName` CustomAttributes.newtypeAttr
     isPure    = attrs `hasAttributeWithName` CustomAttributes.pureAttr
 
@@ -459,7 +455,7 @@ cgTypedef tdef_id ty
     (the_ty, tvs) =
       case findAttribute "represent_as" attrs of
          Just (Attribute _ (ParamLit (StringLit s):_)) -> (tyConst s, [])
-	 _ -> 
+	 _ ->
 	  case (unconstrainType (groundTyVars (toHaskellTy True ty))) of
 	     (ls,t) -> (purify t, map (qName.snd) ls)
 
@@ -469,8 +465,8 @@ cgTypedef tdef_id ty
 
      -- the DT[] translation. IDL simple types, arrays and pointers
      -- are mapped onto type synonyms, the rest are algebraic data types.
- 
-    is_tysyn = 
+
+    is_tysyn =
          isSimpleTy ty
       || isAbstractTy ty
       || isBoolTy ty
@@ -480,7 +476,7 @@ cgTypedef tdef_id ty
       || isSynTy ty
       || isFunTy ty
       || isIntegerTy ty
-      || isStringTy ty  
+      || isStringTy ty
       || isSeqTy ty
     typedef
       | isNewType && null (tail conDecls) = dataType
@@ -488,7 +484,7 @@ cgTypedef tdef_id ty
       | otherwise = dataType
 
     conDecls = mkHaskellConDecls hname attrs ty
-    dataType = 
+    dataType =
 	 TyD $
          TyDecl  (if isNewType then Newtype else Data)
                  hname
@@ -514,7 +510,7 @@ cgTypedef tdef_id ty
          Enum _ EnumFlags{} _ -> \ x -> (eqClass:showClass:x)
 	 _ -> id
 
-    forceFlag = optEnumsAsFlags || 
+    forceFlag = optEnumsAsFlags ||
     		attrs `hasAttributeWithName` CustomAttributes.flagAttr
 \end{code}
 
@@ -534,12 +530,12 @@ for it.
 cgConstant :: Id -> Type -> Type -> Expr -> CgM HDecl
 cgConstant i t o_t e = do
   addExport (ieValue hname)
-  return (typeSig hname ty `andDecl` 
+  return (typeSig hname ty `andDecl`
           funDef  hname [] expr)
  where
    ty    = toHaskellTy True o_t
    hname = mkHaskellVarName (idName i)
-   expr  = 
+   expr  =
         case t of
 	  WString{} -> funApp mkWString [coreToHaskellExpr e]
 	  String{}  -> coreToHaskellExpr e
@@ -550,7 +546,7 @@ cgConstant i t o_t e = do
 	  Bool      -> coreToHaskellExpr e
 	  Octet     -> coreToHaskellExpr e
 	  Pointer{} -> funApp intToAddr [ coreToHaskellExpr e ]
-	  _	    -> error ("cgConstant: don't know how to handle constant of type: " ++ 
+	  _	    -> error ("cgConstant: don't know how to handle constant of type: " ++
 	  		      showCore (ppType ty) ++ showParen True (shows (idName i)) "")
 
 \end{code}
@@ -566,9 +562,9 @@ cgConstant i t o_t e = do
 \begin{code}
 cgInterface :: Id -> InterfaceInherit -> [InterfaceDecl] -> CgM HDecl
 cgInterface if_nm inherit decls = setIfaceName iface_name $ do
-  let 
+  let
       (iface_kind, is_bin)
-       | not (is_object || is_idispatch ) = 
+       | not (is_object || is_idispatch ) =
 	    if (idAttributes if_nm) `hasAttributeWithName` "odl" then
 		(VTBLObject, True)
 	    else
@@ -583,16 +579,16 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
        | is_idispatch =
          case optIgnoreMethsUpto of
 	   Nothing -> decls
-	   Just x  -> 
+	   Just x  ->
 	     case break (isEqualMethod x) decls of
 	       (ds,[])   -> ds
-	       (ds,_:xs) -> 
+	       (ds,_:xs) ->
 	           -- keep any typedefs, but remove the methods
 	          filter (not.isMethod) ds ++ xs
        | otherwise = decls
 
       isEqualMethod x d = isMethod d && idOrigName (declId d) == x
-        
+
 
   if is_bin && optDon'tGenBinaryComInterfaces then
       trace ("Ignoring (binary) interface: "++ show iface_name) $
@@ -609,7 +605,7 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
          when (optNoExportList) (addVitalExport (ieModule (idName if_nm)))
 	 addExplicitImports [(False, ty_mod_nm)]
 
-  ud   <- 
+  ud   <-
      if is_javeh_interface then do
          c <- cgJNIInterface if_nm typeInSepModule
 	 return (infoHeader (Interface if_nm False inherit the_decls_to_use) `andDecl` c)
@@ -617,7 +613,7 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
          c <- cgJNIClass if_nm typeInSepModule
 	 d <- setInterfaceFlag VTBLObject (uuidDecl if_nm inh Iid)
 	 let
-	  ds 
+	  ds
 	   | typeInSepModule = infoHeader (Interface if_nm False inherit the_decls_to_use) `andDecl` c
 	   | otherwise       = infoHeader (Interface if_nm False inherit the_decls_to_use) `andDecl` d `andDecl` c
 	 return ds
@@ -643,7 +639,7 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
 	 incMethodNumber
 	 return d'
     | otherwise  = cgDecl d
-	    
+
    startOffset
     | iface_name == "IUnknown" = 0
     | otherwise		       = sum (map snd inh)
@@ -653,7 +649,7 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
       {-
         Figuring out what kind of interface we've been presented with
 	is a little bit involved:
-	 
+
 	  - if iface has [oleautomation] attr ==> it's an IDispatch thing.
 	  - [dual] 			      ==> IDispatch
 	  - inherits from IDispatch derived iface  ==> IDispatch
@@ -665,17 +661,17 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
 	by the -fdual-vtbl (optDualVtbl) flag.
       -}
 
-   is_object = 
+   is_object =
       attrs `hasAttributeWithName` "object" ||
       any (\ x -> qName (fst x) == "IUnknown") inherit
 
       -- extremely simplistic..
-   is_ienum = 
+   is_ienum =
        not optNoEnumMagic &&
        ("IEnum" `isPrefixOf` iface_name &&
         (length (filter isMethod decls)) == 4 &&
         ok_looking_enum_names)
-  
+
    -- Dear, oh dear. ToDo: control this with a cmd-line switch instead.
    ok_looking_enum_names =
       case (map (idName.declId) (filter isMethod decls)) of
@@ -689,7 +685,7 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
 	 ] -> True
         _ -> False
 
-   is_idispatch = 
+   is_idispatch =
        -- Not right, [oleautomation] only constrains the set of valid types.
        --is_oleaut	           ||
        (isDual && not optDualVtbl) ||
@@ -703,26 +699,26 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
           | optHaskellToC || idName if_nm == "IUnknown" -> []
 	  | otherwise		       -> [(iUnknown, 3)]
       xs@((x,_):_)
-	   -- if we've decided that we're processing an 
+	   -- if we've decided that we're processing an
 	   -- Automation interface, but we've got an IUnknown
 	   -- in our hand as the interface we're inheriting from.
 	   -- Ignore, and pretend it's an IDispatch instead.
-	| is_idispatch && (not is_object) && qName x == "IUnknown" -> 
-	        trace ("Odd, interface " ++ show (idName if_nm) ++ 
+	| is_idispatch && (not is_object) && qName x == "IUnknown" ->
+	        trace ("Odd, interface " ++ show (idName if_nm) ++
 		       "inherits from IUnknown, but has been classified as an Automation interface\n" ++
-		       "(it will be treated as an Automation interface.)") 
+		       "(it will be treated as an Automation interface.)")
 		[(iDispatch, 7)]
 	   -- special case for IUnknown:
 	| is_object && idName if_nm == "IUnknown" -> []
 	| otherwise -> map toStdNames xs
 	   where
-	     -- Just to make sure that we're using them 
+	     -- Just to make sure that we're using them
 	     -- in a proper qualified manner...
-	    toStdNames (n,meths) = 
+	    toStdNames (n,meths) =
 		case (qName n) of
 {- Ensuring that re-defns of these two are short-circuited to the
-   library-provided impls, is now done by the desugarer. 
-   
+   library-provided impls, is now done by the desugarer.
+
    ToDo: delete this once we're certain that this catches all of 'em.
 		  "IDispatch" -> (iDispatch,7)
 		  "IUnknown"  -> (iUnknown,3)
@@ -733,8 +729,8 @@ cgInterface if_nm inherit decls = setIfaceName iface_name $ do
 
 \begin{code}
 
-data GuidKind 
- = Iid | Clsid | Libid 
+data GuidKind
+ = Iid | Clsid | Libid
    deriving ( Eq )
 
 uuidDecl :: Id -> InterfaceInherit -> GuidKind -> CgM HDecl
@@ -748,17 +744,17 @@ uuidDecl i inherit guidKind = do
      return (abs_ty `andDecl` decls)
    _       -> do
      case (getUuidAttribute attrs) of
-       Nothing  
+       Nothing
         | guidKind == Iid  -> do
 	   addExport (ieType iface_ptr_ty_nm False)
            addExport (ieType i_tycon_nm_dummy False)
-	   ds <- 
+	   ds <-
 	      if null inherit && optHaskellToC then do
 	         ds <- marshallAbstract i
 		 return ( abs_ty `andDecl` ds)
 	       else
 	         return emptyDecl
-	     
+
 	   return ( ds 		   `andDecl`
 	            iface_dummy_ty `andDecl`
 		    iface_ptr_ty
@@ -769,20 +765,20 @@ uuidDecl i inherit guidKind = do
 	   when (guidKind == Iid) (addExport (ieType iface_ptr_ty_nm True))
            when (guidKind == Iid && not_iunknown) (addExport (ieType i_tycon_nm_dummy True))
 	   when (not no_libids) (addExport (ieValue iid_name))
-	   return (iface_dummy_ty `andDecl` 
+	   return (iface_dummy_ty `andDecl`
 		   iface_ptr_ty   `andDecl`
 		   iid_def)
 	  where
 	   no_libids    = guidKind == Libid && (optNoLibIds || optUseStdDispatch)
 
 	   iid_name     = iid_prefix ++ iface_ptr_ty_nm
-	   iid_def  
+	   iid_def
 	    | no_libids = emptyDecl
 	    | otherwise = iid_tysig `andDecl` iid_decl
 
 	   iid_tysig    = typeSig iid_name (iid_tycon iid_tycon_args)
 	   iid_decl     = funDef iid_name [] iid_rhs
-	   iid_tyarg    = 
+	   iid_tyarg    =
 		tyCon
 		  iface_ptr_ty_nm
 		  (if not optSubtypedInterfacePointers then
@@ -796,7 +792,7 @@ uuidDecl i inherit guidKind = do
 
 	   mk_iid  =
 	    case guidKind of
-	      Iid   -> mkIID 
+	      Iid   -> mkIID
 	      Clsid -> mkCLSID
 	      Libid -> mkLIBID
 
@@ -812,16 +808,16 @@ uuidDecl i inherit guidKind = do
 
           {-
 	    For interface 'ITest', we generate:
-	    
+
 	       data Test  a = Test__
 	       type ITest a = IUnknown (Test a)
-	       
+
 	    where 'IUnknown' is the interface ITest inherits from.
 	  -}
-	 iface_dummy_ty 
+	 iface_dummy_ty
             | (guidKind /= Iid)  = emptyDecl
 	    | isAuto && optUnparamedInterfacePointers  = tySyn i_tycon_nm [] (mkTyConst iDispatch)
-	    | optSubtypedInterfacePointers = 
+	    | optSubtypedInterfacePointers =
 	       case idName i of
 		"IUnknown" -> emptyDecl  -- it's in a library.
 	        _          -> dataTy (i_tycon_nm_dummy) ["a"] [conDecl (i_tycon_nm++"__") []]
@@ -831,9 +827,9 @@ uuidDecl i inherit guidKind = do
 	    | (guidKind /= Iid) = emptyDecl -- coclass decl doesn't get a type syn.
 	    | optSubtypedInterfacePointers =
 		case idName i of
-		  "IUnknown"             -> 
+		  "IUnknown"             ->
 		  	tySyn iface_ptr_ty_nm ["a"] (mkTyCon iUnknown [tyVar "a"])
-		  _ | notNull inherit -> 
+		  _ | notNull inherit ->
 		  	tySyn iface_ptr_ty_nm ["a"]
 			      (mkTyCon inh_from [tyCon (i_tycon_nm_dummy) [tyVar "a"]])
 		    | otherwise          ->
@@ -844,19 +840,19 @@ uuidDecl i inherit guidKind = do
 
          i_tycon_nm_dummy = i_tycon_nm ++ "_"
 
-	 isAuto = 
+	 isAuto =
 	   case flg of
 	     ComIDispatch _ -> True
 	     _		    -> False
 
-         iface_ptr_ty_nm 
+         iface_ptr_ty_nm
 	    | guidKind == Iid  = mkIfaceTypeName (idName i)
 	    | otherwise        = mkHaskellTyConName (idName i)
 
-	 inh_from = 
+	 inh_from =
 	   let q_nm = fst (head inherit) in
 	   case qName q_nm of
-	    "IUnknown" | isDual -> iDispatch 
+	    "IUnknown" | isDual -> iDispatch
 			 -- I'm not kidding - this kind of bogosity
 			 -- does appear in Real Life.
 	    _  -> q_nm
@@ -868,13 +864,13 @@ uuidDecl i inherit guidKind = do
   attrs      = idAttributes i
   tycon_nm   = mkHaskellTyConName (idName i)
 
-  abs_ty_args  = 
+  abs_ty_args  =
     case findAttribute CustomAttributes.tyArgsAttr attrs of
       Just (Attribute _ [ParamLit (StringLit s)]) -> words s
       _ -> []
 
   abs_ty = newTy tycon_nm abs_ty_args (conDecl tycon_nm [the_abs_ty]) derivings
-  
+
   abs_ty_h = tyCon tycon_nm (map tyConst abs_ty_args)
 
   isDual = attrs `hasAttributeWithName` "dual"
@@ -884,7 +880,7 @@ uuidDecl i inherit guidKind = do
       Just (Attribute _ [ParamLit (StringLit s)]) -> map toQualName (split ',' s)
       _ -> []
 
-  the_abs_ty 
+  the_abs_ty
     | attrs `hasAttributeWithName` CustomAttributes.finaliserAttr
     = tyForeignPtr abs_ty_h
     | otherwise = tyPtr abs_ty_h
@@ -911,7 +907,7 @@ Very much like the translation of a `normal' interface:
 
 \begin{code}
 cgDispInterface :: Id -> Maybe Decl -> [Decl] -> [Decl] -> CgM HDecl
-cgDispInterface i ii props meths = 
+cgDispInterface i ii props meths =
     withIfaceInherit [iUnknown,iDispatch]  $
     setIfaceName (idName i)                $
     inDispInterface			   $
@@ -931,13 +927,13 @@ cgDispInterface i ii props meths =
       'em. The type library based IDispatch marshaller needs to
       be passed a method table.
      -}
-      vtbl <- 
+      vtbl <-
         if (forClient && not is_source) || (not forClient && is_source) then
             return emptyDecl
          else
 	    let
 	      is_wrapper = isJust ii
-	      stuff = 
+	      stuff =
 	        case ii of
 		  Just (Interface{declDecls=ds}) -> ds
 		  _ -> props ++ meths
@@ -949,7 +945,7 @@ cgDispInterface i ii props meths =
 	      vtbl				          `andDecl`
               andDecls body
 	     )
-    
+
 \end{code}
 
 %
@@ -966,11 +962,11 @@ it implements plus it defines its CLSID.
 
 \begin{code}
 cgCoClass :: Id -> [CoClassDecl] -> CgM HDecl
-cgCoClass i cdecls 
+cgCoClass i cdecls
  | optOneModulePerInterface = do
      don't_gen_code_for_cls <-
        case cdecls of
-         [x] | isJust (coClassDecl x) -> 
+         [x] | isJust (coClassDecl x) ->
 	    hoistInClass (idName (coClassId x)) $ \ mb_cls ->
 	    return (isJust mb_cls)
 	 _ -> return False
@@ -979,7 +975,7 @@ cgCoClass i cdecls
         return emptyDecl
       else do
         addExplicitImports import_modules
-        sequence (map (addExport.ieModule.snd) import_modules)
+        sequence_ (map (addExport.ieModule.snd) import_modules)
         ud <- setInterfaceFlag (ComIDispatch False) (uuidDecl i [] Clsid)
         return (prettyPrint ud)
 
@@ -1005,21 +1001,21 @@ cgCoClass i cdecls
     | optIgnoreDispInterfaces = filter (isIface) cdecls
     | otherwise		      = cdecls
 
-  prettyPrint d  = infoHeader (CoClass i cdecls) `andDecl` d 
+  prettyPrint d  = infoHeader (CoClass i cdecls) `andDecl` d
 
 \end{code}
 
 \begin{code}
 cgLibrary :: Id -> [Decl] -> CgM HDecl
-cgLibrary i lib_decls = 
+cgLibrary i lib_decls =
    withDeclName (idName i) $ do
      ud <- setInterfaceFlag (ComIDispatch False) (uuidDecl i [] Libid)
      ds <- mapM cgDecl lib_decls
      return ( prettyPrint ud `andDecl` andDecls ds)
  where
-  prettyPrint d 
+  prettyPrint d
    | optNoLibIds = emptyDecl
-   | otherwise   = infoHeader (Library i lib_decls) `andDecl` d 
+   | otherwise   = infoHeader (Library i lib_decls) `andDecl` d
 
 \end{code}
 
@@ -1040,13 +1036,13 @@ the module and tell everyone what DLL it's coming from
 \begin{code}
 cgModule :: Id -> [Decl] -> CgM HDecl
 cgModule i ds =
-   setInterfaceFlag StdFFI $ 
-   withDeclName (idName i) $ 
+   setInterfaceFlag StdFFI $
+   withDeclName (idName i) $
    mbSetDllName		   $ do
        hs <- mapM cgDecl ds
        return (infoHeader (Module i ds) `andDecl` andDecls hs)
   where
-   mbSetDllName x = 
+   mbSetDllName x =
      case (findAttribute CustomAttributes.dllNameAttr (idAttributes i)) of
        (Just (Attribute _ [ParamLit (StringLit s)])) -> setDllName s x
        _ -> x
@@ -1069,7 +1065,7 @@ is in some cases guided by attributes, e.g., the presence of the
 \begin{code}
 mkHaskellConDecls :: Name -> [Attribute] -> Type -> [ConDecl]
 mkHaskellConDecls nm attrs ty =
-  map (groundTys) $ 
+  map (groundTys) $
   case ty of
    Enum _ k vals          -> mkHEnumDef  nm attrs k vals
    Union _ _ _ _ switches -> mkHUnionDef nm switches
@@ -1083,13 +1079,13 @@ mkHaskellConDecls nm attrs ty =
       | attrs `hasAttributeWithName` CustomAttributes.abstractAttr
       -> [ConDecl nm [Unbanged abs_ty]]
 	where
-	  abs_ty 
+	  abs_ty
 	   | attrs `hasAttributeWithName` CustomAttributes.finaliserAttr
 	   = tyForeignObj
 	   | otherwise = tyAddr
-	      
+
    Pointer pt _ t ->
-       case pt of 
+       case pt of
          Ptr    -> [ConDecl "Ptr" [Unbanged (toHaskellTy True t)]]
          Ref    -> mkHaskellConDecls nm attrs t
          Unique -> [ConDecl "Maybe" [Unbanged (toHaskellTy True t)]]
@@ -1099,10 +1095,10 @@ mkHaskellConDecls nm attrs ty =
 	trace ("mkHaskellConDecls: odd argument: " ++ str)
 	      [ConDecl str []]
  where
-   -- remove any left-over 
+   -- remove any left-over
   groundTys (ConDecl n bs) = ConDecl n (map groundBangTy bs)
   groundTys (RecDecl n rs) = RecDecl n (map (\ (i,t) -> (i,groundBangTy t)) rs)
-  
+
   groundBangTy (Banged t)   = Banged   (groundTyVars t)
   groundBangTy (Unbanged t) = Unbanged (groundTyVars t)
 
@@ -1121,7 +1117,7 @@ IDL types:
 cgMarshallTy :: Id -> Type -> CgM HDecl
 cgMarshallTy i ty =
  case ty of
-  Struct tag members mb_pack -> 
+  Struct tag members mb_pack ->
     case (mkHaskellConDecls (idName tag) (idAttributes tag) ty) of
       [cdecl]       ->  marshallStruct (idName i) tag cdecl members mb_pack
       _             -> error "cgMarshallTy{Struct}: expected one condecl"
@@ -1141,10 +1137,10 @@ cgMarshallTy i ty =
      tag_ty = getTagTy as
 
      switches = map fieldToSwitch fields
-     
+
      fieldToSwitch (Field fi t ot _ _) =  Switch fi labs t ot
         where
-	  labs = 
+	  labs =
 	    case findAttribute "case" (idAttributes i) of
 	      Just (Attribute _ ls) -> mapMaybe toCase ls
 	      _			    -> []
@@ -1158,7 +1154,7 @@ cgMarshallTy i ty =
   FunTy _ _ _  -> marshallFun Nothing i ty
   _            -> return emptyDecl
  where
-  getTagTy as = 
+  getTagTy as =
 	case findAttribute "switch_type" as of
 	  Just (Attribute _ [ParamType t])	 -> t
 	  _ ->
@@ -1169,14 +1165,14 @@ cgMarshallTy i ty =
 \end{code}
 
 \begin{code}
-marshallServ :: Id 
+marshallServ :: Id
 	     -> InterfaceInherit
 	     -> [InterfaceDecl]
 	     -> CgM HDecl
 marshallServ ifaceId inherit decls = do
-  let 
+  let
       iface_kind
-       | not (isObject || isIDispatch ) = 
+       | not (isObject || isIDispatch ) =
 	    if attrs `hasAttributeWithName` "odl" || optCorba || optJNI then
 		VTBLObject
 	    else
@@ -1189,12 +1185,12 @@ marshallServ ifaceId inherit decls = do
   is_src <- getSourceIfaceFlag
   setMethodNumber startOffset
   body <- mapM coGen decls
-  ud   <- 
+  ud   <-
       if is_javeh_interface then
          return emptyDecl
-       else 
+       else
          uuidDecl ifaceId inherit Iid
-  vtbl <- 
+  vtbl <-
      if optJNI then
        cgJClass ifaceId decls
      else
@@ -1222,9 +1218,9 @@ marshallServ ifaceId inherit decls = do
    | iface_name == "IUnknown" = 0
    | otherwise		      = sum (map snd inherit)
 
-  isIDispatch = 
+  isIDispatch =
       (isDual && not optDualVtbl) ||
-      (any (\ x -> qName (fst x) == "IDispatch" && 
+      (any (\ x -> qName (fst x) == "IDispatch" &&
       		   iface_name /= "IDispatchEx") inherit && not (isDual && optDualVtbl))
 
   isDual   = attrs `hasAttributeWithName` "dual"

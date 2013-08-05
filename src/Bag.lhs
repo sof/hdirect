@@ -16,7 +16,7 @@ module Bag (
 	listToBag, bagToList
     ) where
 
-import List(partition)
+import Data.List(partition)
 
 data Bag a
   = EmptyBag
@@ -123,7 +123,7 @@ foldBag t u e (ListOfBags bs) = foldr (\b r -> foldBag t u r b) e bs
 mapBag :: (a -> b) -> Bag a -> Bag b
 mapBag _ EmptyBag 	 = EmptyBag
 mapBag f (UnitBag x)     = UnitBag (f x)
-mapBag f (TwoBags b1 b2) = TwoBags (mapBag f b1) (mapBag f b2) 
+mapBag f (TwoBags b1 b2) = TwoBags (mapBag f b1) (mapBag f b2)
 mapBag f (ListBag xs)    = ListBag (map f xs)
 mapBag f (ListOfBags bs) = ListOfBags (map (mapBag f) bs)
 

@@ -7,7 +7,7 @@ include $(TOP)/mk/boilerplate.mk
 all ::
 
 PACKAGE=hdirect
-PACKAGE_DEPS=lang
+PACKAGE_DEPS=
 
 #
 # Should you want to build the library as a DLL, set it to NO.
@@ -17,13 +17,13 @@ BUILD_STATICALLY=YES
 
 HC_OPTS += -package-name hdirect
 # Since we are using FFI exts we have to compile through C.
-HC_OPTS	+= -fglasgow-exts -fvia-C -Wall -fno-warn-deprecations 
-HC_OPTS	+= -package lang
+HC_OPTS	+= -fglasgow-exts -fvia-C -Wall -fno-warn-deprecations
+#HC_OPTS	+= -package lang
 ifeq "$(BUILD_STATICALLY)" "YES"
 HC_OPTS += -static
 endif
 
-cpp_opts = -cpp -DBEGIN_GHC_ONLY='-}' -DEND_GHC_ONLY='{-' -DBEGIN_NOT_FOR_GHC='{-' -DEND_NOT_FOR_GHC='-}' -DELSE_FOR_GHC='-}-}' 
+cpp_opts = -cpp -DBEGIN_GHC_ONLY='-}' -DEND_GHC_ONLY='{-' -DBEGIN_NOT_FOR_GHC='{-' -DEND_NOT_FOR_GHC='-}' -DELSE_FOR_GHC='-}-}'
 
 HDirect_HC_OPTS      += $(cpp_opts)
 WideString_HC_OPTS   += $(cpp_opts)
@@ -32,7 +32,7 @@ SRC_MKDEPENDHS_OPTS  += $(cpp_opts)
 
 
 WideString_HC_OPTS  += -monly-3-regs
-SRC_IHC_OPTS        += -fno-qualified-names 
+SRC_IHC_OPTS        += -fno-qualified-names
 HUGS_IHC_OPTS        = $(IHC_OPTS) --hugs -odir $(HUGSDIR)
 
 WideString_IHC_OPTS  += -fno-imports -fno-export-lists -fkeep-hresult -fout-pointers-are-not-refs
@@ -80,10 +80,10 @@ endif
 
 # We put the generated output for Hugs98 in a separate directory, $(HUGSDIR), so that
 # GHC and Hugs builds can coexist.
-all :: 
+all ::
 	@if [ -d $(HUGSDIR) ]; then : ; else mkdir $(HUGSDIR); fi;
 
-clean :: 	
+clean ::
 	if [ -d $(HUGSDIR) ]; then $(RM) -rf $(HUGSDIR)/ ; else : ; fi;
 
 HUGS_FILES = Pointer.lhs HDirect.lhs $(patsubst %.idl, $(HUGSDIR)/%.hs, $(HUGS_IDL_SRCS)) $(patsubst %.idl, $(HUGSDIR)/%.$(dllext), $(HUGS_IDL_SRCS))
@@ -199,3 +199,14 @@ ifeq "$(FOR_WIN32)" "YES"
 $(HUGSDIR)/WideString.$(dllext) : HugsMod.def
 $(HUGSDIR)/PointerPrim.$(dllext) : HugsMod.def
 endif
+# DO NOT DELETE: Beginning of Haskell dependencies
+PointerPrim.o : PointerPrim.hs
+Pointer.o : Pointer.lhs
+Pointer.o : PointerPrim.hi
+HDirect.o : HDirect.lhs
+HDirect.o : Pointer.hi
+WideString.o : WideString.hs
+WideString.o : HDirect.hi
+WideString.o : Pointer.hi
+WideString.o : PointerPrim.hi
+# DO NOT DELETE: End of Haskell dependencies

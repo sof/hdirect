@@ -15,8 +15,8 @@ import PP
 import BasicTypes
 import Utils ( traceIf, dropSuffix )
 import Opts  ( optGenHeader, optVerbose, optOneModulePerInterface )
-import List  ( nub )
-import Maybe ( isJust )
+import Data.List  ( nub )
+import Data.Maybe ( isJust )
 import Utils ( notNull )
 \end{code}
 
@@ -51,8 +51,8 @@ addToDllEnv nm cont env = cont (nm:env)
 
 hCode :: [HTopDecl] -> CStubCode
 hCode xs = whizz xs
- where 
-  whizz [] = 
+ where
+  whizz [] =
     getDllEnv  $ \ dlls ->
     let dlls_real = nub (filter notNull dlls) in
     traceIf (optVerbose && notNull dlls_real)
@@ -82,7 +82,7 @@ hDecl (Primitive _ cc lspec nm ty needs_wrapper c_args c_res) cont
  | otherwise	       =
    addToDllEnv dll_name $
    tdefFun lspec cc c_args c_res $$
-   primHeader nm c_res c_args    $$ 
+   primHeader nm c_res c_args    $$
    lbrace $$
      declResult $$
      performCall False lspec ty c_args $$
@@ -90,7 +90,7 @@ hDecl (Primitive _ cc lspec nm ty needs_wrapper c_args c_res) cont
    rbrace $$
    cont
  where
-  declResult = 
+  declResult =
     case snd c_res of
       "void" -> empty
       x      -> text x <+> text "res" <> semi
@@ -100,15 +100,15 @@ hDecl (Primitive _ cc lspec nm ty needs_wrapper c_args c_res) cont
   (dll_name, mb_ord, _, _) = lspec
 
   tdefFun (_,Nothing,_,_) _ _ _ = empty
-  tdefFun (_,Just _,tnm,_) tcc args res = 
+  tdefFun (_,Just _,tnm,_) tcc args res =
     text "extern" <+> text (snd res) <+> ppCallConv True tcc <+> text tnm <+>
     ppTuple (map (text.snd) args) <> semi
 
 hDecl (PrimCast cc nm ty needs_wrapper c_args c_res) cont
  | not needs_wrapper = cont
- | otherwise	     = 
+ | otherwise	     =
    tdefFunTy ty nm cc c_args c_res $$
-   primHeader nm c_res c_args      $$ 
+   primHeader nm c_res c_args      $$
    lbrace $$
      declResult $$
      text (nm++"__funptr __funptr__;") $$
@@ -118,7 +118,7 @@ hDecl (PrimCast cc nm ty needs_wrapper c_args c_res) cont
    rbrace $$
    cont
  where
-  declResult = 
+  declResult =
     case snd c_res of
       "void" -> empty
       x      -> text x <+> text "res" <> semi
@@ -132,8 +132,8 @@ hDecl _ cont = cont
 
 \begin{code}
 primHeader :: Name -> (Bool,String) -> [(Bool,String)] -> CStubCode
-primHeader nm res args = 
-  text the_res <+> text nm <+> 
+primHeader nm res args =
+  text the_res <+> text nm <+>
   ppTuple (zipWith (\ x n -> text (showTy x) <+> ppArg n) args [(0::Int)..])
  where
   the_res = showTy res
@@ -150,7 +150,7 @@ ppArg n = text ("arg"++show n)
 
 \begin{code}
 performCall :: Bool -> LocSpec -> Type -> [(Bool,String)] -> CStubCode
-performCall is_dyn (_, _, fun, _) ty c_args = 
+performCall is_dyn (_, _, fun, _) ty c_args =
    ppAssign res <> text fun <> ppTuple fun_args <> semi
  where
   (_, res) = splitFunTys ty
@@ -166,19 +166,19 @@ performCall is_dyn (_, _, fun, _) ty c_args =
      | otherwise  = ppArg n
 
   ppAssign t
-    | noResultTy t = empty 
+    | noResultTy t = empty
     | otherwise    = text "res" <+> equals
 
 \end{code}
 
 \begin{code}
 pushResult :: (Bool, String) -> Type -> CStubCode
-pushResult (isStructTy, c_ty) ty = assignRes 
- where 
+pushResult (isStructTy, c_ty) ty = assignRes
+ where
   (_, res) = splitFunTys ty
 
   noResult = noResultTy res
-  
+
   assignRes
     | noResult  = empty
     | otherwise = text "return" <+> parens (the_result) <> semi
@@ -195,7 +195,7 @@ pushResult (isStructTy, c_ty) ty = assignRes
 tdefFunTy :: Type -> Name -> CallConv -> [(Bool,String)] -> (Bool,String) -> CStubCode
 tdefFunTy ty nm cc c_args (_,c_res) =
  text "typedef" <+> ppResultTy <+>
-   parens ( ppCallConv True cc <+> char '*' <+> 
+   parens ( ppCallConv True cc <+> char '*' <+>
 	    text (nm++"__funptr")) <+>
    ppTuple ppArgs <> semi
  where
@@ -206,7 +206,7 @@ tdefFunTy ty nm cc c_args (_,c_res) =
    | otherwise = text c_res
 
   ppArgs = zipWith pp_arg [1..] (tail c_args)
-  
+
   pp_arg n (_,t) = text t <+> ppArg n
 
   noResult = noResultTy res

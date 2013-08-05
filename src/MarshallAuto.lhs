@@ -22,7 +22,7 @@ import AbsHUtils
 import MarshallType ( coreToHaskellExpr )
 import MarshallCore ( toBaseTy, autoTypeToQName, mbAutoTypeToHaskellTy )
 import CoreIDL
-import CoreUtils ( int32Ty, doubleTy, mkHaskellVarName, 
+import CoreUtils ( int32Ty, doubleTy, mkHaskellVarName,
 		   isHRESULTTy, isVoidTy, boolTy
 		 )
 
@@ -31,7 +31,7 @@ import Attribute ( hasAttributeWithName, findAttribute )
 import LibUtils ( autoLib )
 import Opts  ( optOptionalAsMaybe
 	     )
-import Maybe ( isJust )
+import Data.Maybe ( isJust )
 import Literal
 
 \end{code}
@@ -48,10 +48,10 @@ marshallVariantParam p = funApply real_marshaller [ var (idName (paramId p)) ]
    -- taking [defaultvalue()]s into account (if any).
    -- Use 'marshallerMeth' if you don't care for this stuff.
   real_marshaller
-   | m == In && attrs `hasAttributeWithName` "defaultvalue" = 
+   | m == In && attrs `hasAttributeWithName` "defaultvalue" =
       case findAttribute "defaultvalue" attrs of
         Just (Attribute _ (ap:_))
-	     | okLooking ap -> 
+	     | okLooking ap ->
 		    let
 		      pt      = paramType p
 		      base_ty = toBaseTy pt
@@ -59,7 +59,7 @@ marshallVariantParam p = funApply real_marshaller [ var (idName (paramId p)) ]
 			  Stuff like
 			    [in,optional,defaultvalue(0)]IUnknown* ip
 			    [in,optional,defaultvalue(0)]char ip
-			  
+
 			  won't work if we use the arg type to drive
 			  marshalling, so catch this sep.
 			-}
@@ -68,11 +68,11 @@ marshallVariantParam p = funApply real_marshaller [ var (idName (paramId p)) ]
 		       | isBoolLit expr   = boolTy
 		       | isDoubleLit expr = doubleTy
 		       | otherwise        = base_ty
-		       
+
 		      def_val_marshaller
 		       | not optOptionalAsMaybe = qvar autoLib "inDefaultValue"
 		       | otherwise		= qvar autoLib "inMaybe"
-                    in		       
+                    in
 		       funApply def_val_marshaller
 			        [ funApply (marshallVariant kind the_base_ty)
 					   [coreToHaskellExpr expr]
@@ -82,35 +82,35 @@ marshallVariantParam p = funApply real_marshaller [ var (idName (paramId p)) ]
 	     okLooking (ParamLit  _) = True
 	     okLooking (ParamExpr _) = True
 	     okLooking _	     = False
-	     
-	     isIntLit e = 
+
+	     isIntLit e =
 	        case e of
 		  Lit (IntegerLit{}) -> True
 		  _		     -> False
 
-	     isDoubleLit e = 
+	     isDoubleLit e =
 	        case e of
 		  Lit (FloatingLit{}) -> True
 		  _		      -> False
 
-	     isBoolLit e = 
+	     isBoolLit e =
 	        case e of
 		  Lit (BooleanLit{}) -> True
 		  _		     -> False
 
-	     expr = 
+	     expr =
 	       case ap of
 	         ParamLit  l -> Lit l
 		 ParamExpr e -> e
 		 _           -> error "MarshallAuto.marshallVariantParam.expr: unexpected parameter kind"
 
-        _ 
+        _
 	  | optOptionalAsMaybe ->
 		       funApply (qvar autoLib "inMaybe")
 			        [ qvar autoLib "noInArg"
 				, marshallerMeth
 				]
-	      
+
 	  | otherwise  -> marshallerMeth
 
    | has_optional && optOptionalAsMaybe =
@@ -123,7 +123,7 @@ marshallVariantParam p = funApply real_marshaller [ var (idName (paramId p)) ]
   marshallerMeth
    | m == In && not optOptionalAsMaybe && has_optional = qvar autoLib "inVariant"
    | otherwise = marshallVariant kind (paramOrigType p)
-     
+
   has_optional = attrs `hasAttributeWithName` "optional"
 
   kind =
@@ -133,7 +133,7 @@ marshallVariantParam p = funApply real_marshaller [ var (idName (paramId p)) ]
      InOut -> "inout"
 
 unmarshallVariantParam :: Param -> Haskell.Expr
-unmarshallVariantParam p = 
+unmarshallVariantParam p =
   case m of
     InOut -> funApply expr [var (mkHaskellVarName (idName (paramId p)))]
     _     -> expr
@@ -147,17 +147,17 @@ unmarshallVariantParam p =
      InOut -> "inout"
 
 marshallVariant :: String -> Type -> Haskell.Expr
-marshallVariant pre ty = 
-   let 
+marshallVariant pre ty =
+   let
     qn = autoTypeToQName ty
     qv = prefix pre qn
    in
    qvar autoLib (qName qv)
 
 \end{code}
- 
+
 determine what kind of Automation library stub to call.
- 
+
 \begin{code}
 classifyCall :: Id -> Bool -> [Param] -> Result -> Haskell.VarName
 classifyCall f useDISPID ps res
@@ -214,7 +214,7 @@ classifyCall f useDISPID ps res
 
 \begin{code}
 permissibleAutoSig :: Result -> [Param] -> Bool
-permissibleAutoSig res ps = 
+permissibleAutoSig res ps =
   (isVoidTy r_ty || isHRESULTTy r_ty || isJust (mbAutoTypeToHaskellTy In r_ty)) &&
   all isJust (map ((mbAutoTypeToHaskellTy In).paramType) ps)
  where

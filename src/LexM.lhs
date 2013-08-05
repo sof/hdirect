@@ -7,11 +7,11 @@ The @LexM@ hides the information maintained by the IDL lexer
 
 
 \begin{code}
-module LexM 
+module LexM
 
        (
          LexM
-	
+
        , runLexM         -- :: [FilePath] -> String -> LexM a -> IO (a, SymbolTable IDLToken)
        , invokeLexM      -- :: String -> String -> LexM a -> LexM a
        , ioToLexM        -- :: IO a   -> LexM a
@@ -31,14 +31,14 @@ module LexM
        , addTypedef      -- :: String -> LexM ()
        , setTok
        , getTok
-       
+
        , inSystemContext
        , getSystemContextFlag
 
        , cacheFilePath
        , alreadySeenFile
        , importFile
-       
+
        , handleImportLib
        , slurpImports
 
@@ -54,9 +54,9 @@ import IDLSyn
 import PreProc
 import Utils   ( tryOpen, dropSuffix )
 import Opts    ( optVerbose, optConvertImportLibs )
-import IO      ( hPutStrLn, stderr )
-import Monad   ( when )
-import Char    ( toLower )
+import System.IO ( hPutStrLn, stderr )
+import Control.Monad ( when )
+import Data.Char ( toLower )
 
 -- components threaded by the monad (apart from
 -- the IO token.)
@@ -67,7 +67,7 @@ data LexState
       inp_stream :: String     {- input stream -}
   }
 
-data LexEnv = 
+data LexEnv =
   LexEnv {
     env_src_loc     :: SrcLoc,
     env_origsrc_loc :: SrcLoc,
@@ -80,13 +80,13 @@ newtype LexM a = LexM (  LexEnv -> LexState -> IO (a, LexState))
 
 runLexM :: [String]
         -> String
-        -> String 
-        -> LexM a 
+        -> String
+        -> LexM a
 	-> IO a
 runLexM path fname str (LexM m) = do
   var <- newIORef []
   let sl = (mkSrcLoc fname 1)
-  (v, _) <- m (LexEnv sl sl False path var) 
+  (v, _) <- m (LexEnv sl sl False path var)
               (LexState (SymbolTable.mkSymbolTable idlKeywords) Nothing str)
   return v
 
@@ -98,7 +98,7 @@ invokeLexM fname ls (LexM m) =
  LexM (\ (LexEnv _ _ flg path var) (LexState symt tok cs) -> do
     let -- symt1 = SymbolTable.newContext symt
         sl    = (mkSrcLoc fname 1)
-    (v, LexState symt2 _ _) 
+    (v, LexState symt2 _ _)
       <- m (LexEnv sl sl flg path var)
 	   (LexState symt tok ls)
     return (v, LexState symt2{-(SymbolTable.combineSyms symt symt2)-} tok cs))
@@ -123,7 +123,7 @@ alreadySeenFile f =
      return (f `elem` ls, st))
 
 incLineNo :: LexM a -> LexM a
-incLineNo (LexM m) = 
+incLineNo (LexM m) =
  LexM (\ env@(LexEnv{env_src_loc=l}) st -> m (env{env_src_loc=incSrcLineNo l}) st)
 
 setSrcLoc :: SrcLoc -> LexM a -> LexM a
@@ -148,7 +148,7 @@ isEOF :: LexM Bool
 isEOF = LexM (\ _ st -> return (null (inp_stream st), st))
 
 getNextChar :: LexM Char
-getNextChar = 
+getNextChar =
   LexM (\ _ st ->
      case inp_stream st of
        (c:cs) -> return (c, st{inp_stream=cs})
@@ -164,11 +164,11 @@ setStream :: String -> LexM ()
 setStream cs = LexM (\ _ st -> return ((), st{inp_stream=cs}))
 
 lookupSymbol :: String -> LexM (Maybe IDLToken)
-lookupSymbol str = 
+lookupSymbol str =
   LexM (\ _ st -> return (SymbolTable.lookupSymbol (sym_table st) str, st))
 
 lookupType :: String -> LexM (Maybe IDLToken)
-lookupType str = 
+lookupType str =
   LexM (\ _ st -> return (SymbolTable.lookupType (sym_table st) str, st))
 
 -- back door entry for adding new types after we've installed
@@ -220,14 +220,14 @@ instance Monad LexM where
 \begin{code}
 importFile :: String -> LexM (Maybe String)
 importFile fname = do
-  path  <- getPath 
+  path  <- getPath
   res   <- ioToLexM (tryOpen optVerbose path exts fname)
   case res of
     Nothing   -> do
         l   <- getSrcLoc
         ioToLexM (ioError
 		     (userError  (show l ++": Unable to import "++ fname)))
-        
+
     Just fn   -> do
         flg <- alreadySeenFile fn
         if flg
@@ -251,7 +251,7 @@ handleImportLib parse str
 {- BEGIN_NOT_TLB_SUPPORT
      warningMsg ("ignoring importlib("++show str ++"): Type library imports not supported")
    END_NOT_TLB_SUPPORT -}
-     return (ImportLib str) 
+     return (ImportLib str)
  | otherwise  = slurpImports parse [str']
   where
     str' = dropSuffix (map toLower str) ++ ".idl"

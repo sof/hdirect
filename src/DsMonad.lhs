@@ -10,10 +10,10 @@ that maps user defined type names to their type and
 attributes.
 
 \begin{code}
-module DsMonad 
+module DsMonad
 	(
 	  DsM
-	, runDsM 		-- :: String 
+	, runDsM 		-- :: String
 				-- -> Env String TypeInfo
 				-- -> Env String (Bool, [IDL.Attribute])
 				-- -> String DsM a
@@ -31,7 +31,7 @@ module DsMonad
 	, getAttributes	        -- :: DsM [Attribute]
 	, propagateAttributes   -- :: [Attribute] -> DsM a -> DsM a
 	, withAttributes        -- :: [Attribute] -> DsM a -> DsM a
-	
+
 	, getSrcFilename        -- :: DsM String
 
 	, pushPack		-- :: Maybe (Maybe (String, Maybe Int)) -> DsM ()
@@ -49,23 +49,23 @@ module DsMonad
 
 	, getFilename		-- :: DsM (Maybe String)
 	, setFilename		-- :: Maybe String -> DsM ()
-	
+
 	, getInterface	        -- :: DsM (Maybe String)
 	, withInterface         -- :: String -> DsM a -> DsM a
-	
+
 	, addToPath             -- :: String -> DsM a -> DsM a
 	, getPath               -- :: DsM String
-	
+
 	, inLibrary             -- :: DsM a -> DsM a
 	, isInLibrary           -- :: DsM Bool
-	
+
 	, inImportedContext     -- :: DsM a -> DsM a
 	, isInImportedContext   -- :: DsM Bool
-	
+
 	, addWarning		-- :: String -> DsM ()
-	
+
 	, ioToDsM		-- :: IO a -> DsM a
-	
+
 	, TypeEnv
 	, SourceEnv
 	, ConstEnv
@@ -80,17 +80,17 @@ import qualified IDLSyn as IDL ( Attribute )
 import CoreUtils ( childAttributes )
 import Env
 import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
-import IO  ( hPutStrLn, stderr )
-import Int ( Int32 )
-import Monad ( when )
+import System.IO  ( hPutStrLn, stderr )
+import Data.Int ( Int32 )
+import Control.Monad ( when )
 import Opts  ( optVerbose, optDebug )
-import Maybe ( catMaybes )
+import Data.Maybe ( catMaybes )
 import TypeInfo
 
 \end{code}
 
 Lots of stuff being plumbed here...maybe I qualify for a plumber's
-diploma on the grounds of this monad? 
+diploma on the grounds of this monad?
 
 \begin{code}
 type TypeEnv      = Env String (Maybe String, Type, [Attribute])
@@ -105,7 +105,7 @@ data EnvChain
       [DsEnvs]
 
 data DsEnvs
- = DsEnvs 
+ = DsEnvs
      { type_env :: TypeEnv
      , if_env   :: IfaceEnv
      , co_env   :: ConstEnv
@@ -116,7 +116,7 @@ data DsEnvs
 freshDsEnv :: DsEnvs
 freshDsEnv = DsEnvs newEnv newEnv newEnv newEnv newEnv
 
--- As an experiment, this monad uses an environment containing 
+-- As an experiment, this monad uses an environment containing
 -- IORefs rather than thread the information they carry. It is
 -- questionable whether this is more efficient, and the result
 -- is less than pretty => switch to threading the info sometime
@@ -124,7 +124,7 @@ freshDsEnv = DsEnvs newEnv newEnv newEnv newEnv newEnv
 
 
 data DsMEnv
- = DsMEnv 
+ = DsMEnv
     { env_ref    :: IORef EnvChain
     , at_ref     :: (IORef [Attribute])    -- the current interface's attributes
     , fn_ref     :: (IORef (Maybe String)) -- current file/module name
@@ -164,7 +164,7 @@ runDsM srcFileName tInfo aenv defs (DsM m) = do
   let denv = DsMEnv chain at md cur_if in_l in_im tInfo
   		    aenv pck "" srcFileName
   a        <- m denv
-  cha1     <- readIORef chain      
+  cha1     <- readIORef chain
   let (EnvChain t ds) = cha1
       ty = unionEnvs (t:map type_env ds)
       ta = unionEnvs (map tg_env ds)
@@ -199,7 +199,7 @@ liftDsM :: (DsMEnv -> IO a) -> DsM a
 liftDsM a = DsM a
 
 lookupType :: String -> DsM (Maybe (Maybe String, Type, [Attribute]))
-lookupType str = liftDsM $ 
+lookupType str = liftDsM $
    \ (DsMEnv{env_ref=ref}) -> do
         chain <- readIORef ref
 	let (EnvChain t ds) = chain
@@ -216,7 +216,7 @@ lookupAsf :: String -> DsM (Maybe (Bool, [IDL.Attribute]))
 lookupAsf str = liftDsM (\ (DsMEnv{asf_env=as})  -> return (lookupEnv as str))
 
 lookupConst :: String -> DsM (Maybe (Either Int32 Expr))
-lookupConst str = liftDsM $ 
+lookupConst str = liftDsM $
     \ (DsMEnv{env_ref=ref}) -> do
         chain <- readIORef ref
 	let (EnvChain _ ls) = chain
@@ -225,7 +225,7 @@ lookupConst str = liftDsM $
 	   (x:_) -> return (Just x)
 
 lookupIface :: String -> DsM (Maybe Decl)
-lookupIface str = liftDsM $ 
+lookupIface str = liftDsM $
    \ (DsMEnv{env_ref=ref}) -> do
         chain <- readIORef ref
 	let (EnvChain _ ls) = chain
@@ -234,7 +234,7 @@ lookupIface str = liftDsM $
 	   (x:_) -> return (Just x)
 
 lookupTag :: String -> DsM (Maybe (Maybe String, String))
-lookupTag str = liftDsM $ 
+lookupTag str = liftDsM $
    \ (DsMEnv{env_ref=ref}) -> do
         chain <- readIORef ref
 	let (EnvChain _ ls) = chain
@@ -247,7 +247,7 @@ getAttributes = liftDsM (\ (DsMEnv{at_ref=at_v})  -> readIORef at_v)
 
 {- UNUSED
 getInheritedAttributes :: DsM [Attribute]
-getInheritedAttributes = 
+getInheritedAttributes =
    liftDsM (\ (DsMEnv{at_ref=at_v})  -> do
 		ls <- readIORef at_v
 		return (childAttributes ls))
@@ -322,7 +322,7 @@ addToConstEnv str val = liftDsM $
 	writeIORef ref (EnvChain t (d':ds))
 
 addToTagEnv :: String -> String -> DsM ()
-addToTagEnv str val = liftDsM $ 
+addToTagEnv str val = liftDsM $
   \ (DsMEnv{env_ref=ref,fn_ref=fe}) -> do
         chain <- readIORef ref
 	md    <- readIORef fe
@@ -354,9 +354,9 @@ setInterface :: Maybe String -> DsM ()
 setInterface nm = liftDsM ( \ (DsMEnv{current_if=cur_i_ref}) -> writeIORef cur_i_ref nm)
 
 addToPath :: String -> DsM a -> DsM a
-addToPath nm (DsM x) = 
+addToPath nm (DsM x) =
   DsM (\ (env@DsMEnv{nm_path=onm}) ->
-           let new_nm = 
+           let new_nm =
 	   	case onm of
 		  "" -> nm
 		  _  -> onm ++ '.':nm
@@ -372,7 +372,7 @@ withInterface nm act = do
    return v
 
 inLibrary :: DsM a -> DsM a
-inLibrary (DsM act) = liftDsM $ 
+inLibrary (DsM act) = liftDsM $
  \ env@(DsMEnv{in_lib=in_lib_ref}) -> do
      writeIORef in_lib_ref True
      v      <- act env
@@ -402,9 +402,9 @@ pushPack mb_val = liftDsM $ \ (DsMEnv{pack_stk=ps_ref}) -> do
      Just Nothing ->
 	case ls of
 	  ((_,x):_) -> writeIORef ps_ref ((Nothing,x):ls)
-	  []        -> writeIORef ps_ref [(Nothing,8)] 
+	  []        -> writeIORef ps_ref [(Nothing,8)]
      Just (Just ("", Just x)) -> writeIORef ps_ref ((Nothing,x):ls)
-     Just (Just (nm, Nothing)) -> 
+     Just (Just (nm, Nothing)) ->
 	case ls of
 	  ((_,x):_) -> writeIORef ps_ref ((Just nm,x):ls)
 	  []        -> writeIORef ps_ref [(Just nm,8)]
@@ -420,7 +420,7 @@ getCurrentPack = liftDsM $ \ (DsMEnv{pack_stk=ps_ref}) -> do
 popPack :: Maybe (String, Maybe Int) -> DsM ()
 popPack mb_i = liftDsM $ \ (DsMEnv{pack_stk=ps_ref}) -> do
    ls <- readIORef ps_ref
-   let ls' = 
+   let ls' =
    	case mb_i of
 	  Nothing           -> case ls of { [] -> [] ; (_:xs) -> xs }
 	  Just ("", Just v) -> case ls of { [] -> [] ; (_:xs) -> ((Nothing,v):xs) }
@@ -429,7 +429,7 @@ popPack mb_i = liftDsM $ \ (DsMEnv{pack_stk=ps_ref}) -> do
  where
    scramble _ ls [] = ls
    scramble x ls ((Nothing,_):xs) = scramble x ls xs
-   scramble x ls ((Just y,_):xs) 
+   scramble x ls ((Just y,_):xs)
        | x == y     = xs
        | otherwise  = scramble x ls xs
 

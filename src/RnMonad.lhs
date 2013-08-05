@@ -1,4 +1,4 @@
-% 
+%
 % (c) sof 1999-
 %
 % @(#) $Docid: Sep. 18th 2001  09:28  Sigbjorn Finne $
@@ -9,10 +9,10 @@ The 'Renamer' monad - carrying around the environments needed to
 turn a set of IDL decls into a set of uniquely named Haskell decls.
 
 \begin{code}
-module RnMonad 
+module RnMonad
 	(
 	  RnM
-	, runRnM           -- :: TypeEnv -> TagEnv -> SourceEnv 
+	, runRnM           -- :: TypeEnv -> TagEnv -> SourceEnv
 		           -- -> RnM a -> (a, IsoEnv, IfaceNukeEnv)
 	, lookupTypeId     -- :: Name -> RnM (Maybe (Maybe String, Type))
 	, lookupIface      -- :: Name -> RnM (Maybe Decl)
@@ -60,7 +60,7 @@ import DsMonad   ( TypeEnv, SourceEnv, TagEnv, IfaceEnv )
 import CoreIDL
 import CoreUtils
 import BasicTypes
-import Maybe ( isJust )
+import Data.Maybe ( isJust )
 import Utils
 \end{code}
 
@@ -77,28 +77,28 @@ type RnEnv = ( String    -- current interface name
 
   -- name environments are used to map from the name that occurred
   -- in the IDL input to the unique name&module to use when generating Haskell.
-  -- 
+  --
   -- while renaming, when a name is encountered, we first check to see whether
   -- it has got a mapping in the NameEnv. If so, reuse it.
 type NameEnv       = Env.Env String String
 
   -- UniqueNameEnvs are used to record how many defns of a name N there has been
-  -- /in the current scope/. 
+  -- /in the current scope/.
 type UniqueNameEnv = Env.Env String Int
 
   -- the renaming pass will optionally also spot isomorphic methods, that is,
   -- methods with the same name, same method table offset (if any -- IDispatch
   -- methods doesn't have any), result and parameter types.
-  -- 
+  --
   -- The underlying idea is that in many cases interfaces mapped to the same Haskell
   -- module have identical methods. Spotting the ones that are shared allows us to later
-  -- generate just the one stub, rather than N. 
+  -- generate just the one stub, rather than N.
 type MethodEnv = Env.Env String [(Maybe Int,Result,[Param])]
 type IsoEnv    = Env.Env String [(Result,[Param])]
 
   -- the 'nuke' interface environment is used for two purposes:
   --   * some interfaces we may simply want to ignore. Period.
-  --   * sometimes you see IDL input of the form 
+  --   * sometimes you see IDL input of the form
   --            "interface _A {....}; coclass A { interface A; }"
   --     If you've got the one-module-per-iface/class option turned on,
   --     you really don't want to generate two modules for this (assuming
@@ -115,11 +115,11 @@ The n-spaces are:
 
  + typedef'ed names      (turns into type names in Haskell)
  + constructed tag names (turns into data cons in Haskell)
- + field labels	    
+ + field labels
 	IDL mimics C's rules for overloading field labels, they
 	only have to be unique within a constructed type declaration, not
-	across all definitions in scope. 
-	    
+	across all definitions in scope.
+
 	Since we're mapping field labels to Haskell record field
 	labels, we have to ensure that a label is unique within the scope
 	of one module (best we can do.)
@@ -133,7 +133,7 @@ The n-spaces are:
 
        void foo([in]int _data, [in]int __data);
 
-   should turn into 
+   should turn into
 
        void foo([in]int data0, [in]int data1);
 
@@ -142,7 +142,7 @@ The n-spaces are:
 
 \begin{code}
 
-type NameSpaceEnv = 
+type NameSpaceEnv =
   ( NameEnv        -- current set of forward/unbound IDL names.
   , NameEnv        -- mapping from IDL names to (unique) Haskell name
   , UniqueNameEnv  -- mapping from Haskell names to next unique tag.
@@ -150,7 +150,7 @@ type NameSpaceEnv =
 
 -- big,fat&ugly state:
 data RnState
- = RnState 
+ = RnState
      { type_env		:: TypeEnv
      , tg_env		:: TagEnv
      , src_env		:: SourceEnv
@@ -171,8 +171,8 @@ runRnM :: TypeEnv
        -> SourceEnv
        -> IfaceEnv
        -> RnM a -> (a, IsoEnv, IfaceNukeEnv)
-runRnM tenv tgenv senv ienv (RnM act) = 
-  case (act ("","",[]) envs) of 
+runRnM tenv tgenv senv ienv (RnM act) =
+  case (act ("","",[]) envs) of
     (v, RnState{iso_meths=i,iface_nuke_env=e}) -> (v, i, e)
  where
   n_env = (newINameEnv, newINameEnv, newNameEnv)
@@ -196,8 +196,8 @@ runRnM tenv tgenv senv ienv (RnM act) =
 
 \begin{code}
 lookupTypeId :: Name -> RnM (Maybe (Maybe String, Type))
-lookupTypeId nm = RnM $ \ _ st -> 
-  ( mapMb (\ (mod,t,_) -> (mod,t))
+lookupTypeId nm = RnM $ \ _ st ->
+  ( mapMb (\ (m, t, _) -> (m, t))
           (Env.lookupEnv (type_env st) nm)
   , st
   )
@@ -215,7 +215,7 @@ setMethOffset :: Maybe Int -> RnM a -> RnM a
 setMethOffset no (RnM a) = RnM ( \ env st -> a env (st{meth_offset=no}))
 
 incMethOffset :: RnM ()
-incMethOffset = RnM $ \ _ st -> 
+incMethOffset = RnM $ \ _ st ->
 	    let
 	      st' =
 	       case meth_offset st of
@@ -225,7 +225,7 @@ incMethOffset = RnM $ \ _ st ->
 	    ((), st')
 
 withNewVarIdEnv :: RnM a -> RnM a
-withNewVarIdEnv (RnM act) = RnM $ \ env st -> 
+withNewVarIdEnv (RnM act) = RnM $ \ env st ->
      let old = varid_env st in
      case act env st of
        (v, st') -> (v, st'{varid_env=old})
@@ -251,7 +251,7 @@ newNameEnv :: UniqueNameEnv
 newNameEnv = Env.addListToEnv Env.newEnv builtins
  where
   builtins = zip builtin_names (repeat 0)
-  
+
   builtin_names = haskellKeywords
 
 haskellKeywords :: [String]
@@ -265,9 +265,9 @@ haskellKeywords =
 
 lookupAndAddEnv2 :: (RnState -> NameSpaceEnv)
 		 -> (RnState -> NameSpaceEnv -> RnState)
-		 -> String 
 		 -> String
-		 -> (String -> RnM a) 
+		 -> String
+		 -> (String -> RnM a)
 		 -> RnM a
 lookupAndAddEnv2 get upd nm nm_to_use cont = RnM $ \ rn_env st ->
         let (fwdMap, idlMap, env) = get st in
@@ -280,7 +280,7 @@ lookupAndAddEnv2 get upd nm nm_to_use cont = RnM $ \ rn_env st ->
 		act rn_env st
           Nothing -> -- no forward mention, try the IDL->HS map.
 	     case Env.lookupEnv idlMap nm of
-	       Just x -> -- IDL name in scope, use it's unique name. 
+	       Just x -> -- IDL name in scope, use it's unique name.
 	       		let
 	                 (RnM act) = cont x
 			in
@@ -289,15 +289,15 @@ lookupAndAddEnv2 get upd nm nm_to_use cont = RnM $ \ rn_env st ->
 	           -- Not seen, add it to the 'forward map', allocating
 		   -- a unique name for it.
 		case Env.lookupEnv env nm_to_use of
-	          Nothing -> 
+	          Nothing ->
 	            let env'      = Env.addToEnv env nm_to_use 0
 		    	fwdMap'   = Env.addToEnv fwdMap nm nm_to_use
 	                (RnM act) = cont nm_to_use
 		    in
 		    act rn_env (upd st (fwdMap', idlMap, env'))
-	          Just i -> 
+	          Just i ->
 		    -- Find a new unique and use it.
-	           let 
+	           let
 		       (env',nm') = addNewName env nm_to_use i
 		       fwdMap'    = Env.addToEnv fwdMap nm nm'
 	               (RnM act)  = cont nm'
@@ -306,9 +306,9 @@ lookupAndAddEnv2 get upd nm nm_to_use cont = RnM $ \ rn_env st ->
 
 lookupAndAddEnv :: (RnState -> NameSpaceEnv)
 		 -> (RnState -> NameSpaceEnv -> RnState)
-		 -> String 
 		 -> String
-		 -> (String -> RnM a) 
+		 -> String
+		 -> (String -> RnM a)
 		 -> RnM a
 lookupAndAddEnv get upd nm nm_to_use cont = RnM $ \ rn_env st ->
         let (fwdMap,idlMap, env) = get st in
@@ -328,24 +328,24 @@ lookupAndAddEnv get upd nm nm_to_use cont = RnM $ \ rn_env st ->
 			      (RnM act) = cont x
 			     in
 			     act rn_env (upd st (fwdMap',idlMap', env'))
-		  Just _ -> 
-		    -- 
-	           let 
+		  Just _ ->
+		    --
+	           let
 		       fwdMap'   = Env.delFromEnv fwdMap nm
 		       idlMap'   = Env.addToEnv idlMap nm x
 	               (RnM act) = cont x
 		   in
 		   act rn_env (upd st (fwdMap',idlMap',env))
-          Nothing -> -- there's been no forward reference, 
+          Nothing -> -- there's been no forward reference,
 	  	     -- 'simply' find a unique name and upd. the IDL map.
 	     case Env.lookupEnv env nm_to_use of
-	        Nothing -> 
+	        Nothing ->
 	          let env'       = Env.addToEnv env nm_to_use 0
 		      idlMap'    = Env.addToEnv idlMap nm nm_to_use
 	              (RnM act)  = cont nm_to_use
 		  in
 		  act rn_env (upd st (fwdMap, idlMap', env'))
-	        Just i -> 
+	        Just i ->
 	           let (env',nm') = addNewName env nm_to_use i
 		       idlMap'    = Env.addToEnv idlMap nm nm'
 	               (RnM act)  = cont nm'
@@ -359,7 +359,7 @@ addNewName :: Env.Env String Int
 addNewName env nm v =
   let nm' = nm ++ show v in
   case Env.lookupEnv env nm' of
-   Nothing -> 
+   Nothing ->
 	      let env'     = Env.addToEnv env  nm  (v+1)
 	          env''    = Env.addToEnv env' nm' 0
               in
@@ -368,35 +368,35 @@ addNewName env nm v =
 
 
 lookupVarIdAndAddEnv :: String -> (String -> RnM a) -> RnM a
-lookupVarIdAndAddEnv nm cont = 
+lookupVarIdAndAddEnv nm cont =
     lookupAndAddEnv (varid_env) (\ st env' -> st{varid_env=env'}) nm (mkHaskellVarName nm) cont
 
 lookupTypeIdAndAddEnv :: String -> (String -> RnM a) -> RnM a
-lookupTypeIdAndAddEnv nm cont = 
+lookupTypeIdAndAddEnv nm cont =
     lookupAndAddEnv (tyid_env) (\ st env' -> st{tyid_env=env'}) nm (mkHaskellTyConName nm) cont
 
 lookupTyConAndAddEnv :: String -> (String -> RnM a) -> RnM a
-lookupTyConAndAddEnv nm cont = 
+lookupTyConAndAddEnv nm cont =
     lookupAndAddEnv (tycon_env) (\ st env' -> st{tycon_env=env'}) nm (mkHaskellTyConName nm) cont
 
 lookupModIdAndAddEnv :: String -> (String -> RnM a) -> RnM a
-lookupModIdAndAddEnv nm cont = 
+lookupModIdAndAddEnv nm cont =
     lookupAndAddEnv (modid_env) (\ st env' -> st{modid_env=env'}) nm (mkHaskellTyConName nm) cont
 
 lookupClassIdAndAddEnv :: String -> (String -> RnM a) -> RnM a
-lookupClassIdAndAddEnv nm cont = 
+lookupClassIdAndAddEnv nm cont =
     lookupAndAddEnv (clsid_env) (\ st env' -> st{clsid_env=env'}) nm (mkHaskellTyConName nm) cont
 
 lookupTyConEnv :: String -> (String -> RnM a) -> RnM a
-lookupTyConEnv nm cont = 
+lookupTyConEnv nm cont =
     lookupAndAddEnv2 (tycon_env) (\ st env' -> st{tycon_env=env'}) nm (mkHaskellTyConName nm) cont
 
 lookupTypeIdEnv :: String -> (String -> RnM a) -> RnM a
-lookupTypeIdEnv nm cont = 
+lookupTypeIdEnv nm cont =
     lookupAndAddEnv2 (tyid_env) (\ st env' -> st{tyid_env=env'}) nm (mkHaskellTyConName nm) cont
 
 lookupVarIdEnv :: String -> (String -> RnM a) -> RnM a
-lookupVarIdEnv nm cont = 
+lookupVarIdEnv nm cont =
     lookupAndAddEnv2 (varid_env) (\ st env' -> st{varid_env=env'}) nm (mkHaskellVarName nm) cont
 
 varIdInScope :: String -> RnM Bool
@@ -422,7 +422,7 @@ addMethod nm it = RnM (\ _ st -> ((), st{meth_env=Env.addToEnv_C (++) (meth_env 
 
 addIsoMethod :: String -> (Result,[Param]) -> RnM ()
 addIsoMethod nm it =
-   RnM (\ _ st -> 
+   RnM (\ _ st ->
 	  ((), st{iso_meths=Env.addToEnv_C (++) (iso_meths st) nm [it]}))
 
 lookupMethod :: String -> RnM (Maybe [(Maybe Int, Result, [Param])])

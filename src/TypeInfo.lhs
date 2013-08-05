@@ -5,7 +5,7 @@
 Specifying type / marshalling information
 
 \begin{code}
-module TypeInfo 
+module TypeInfo
 
        ( TypeInfo(..)
        , typeInfos
@@ -24,7 +24,6 @@ module TypeInfo
 import BasicTypes
 import NativeInfo
 import Opts
-import Maybe
 import AbsHUtils
 import AbstractH ( Type )
 import LibUtils  ( comLib )
@@ -37,10 +36,10 @@ import
 
 A @TypeInfo@ record contains all the info needed by the
 backend(s) to convert the use of a type into appropriate
-Haskell code. 
+Haskell code.
 
 \begin{code}
-data TypeInfo 
+data TypeInfo
  = TypeInfo {
      type_name        :: String,
      haskell_type     :: QualName,
@@ -70,7 +69,7 @@ data TypeInfo
 
 \begin{code}
 typeInfos :: [TypeInfo]
-typeInfos = 
+typeInfos =
   [ variant_ti
   , v_bool_ti
   , currency_ti
@@ -81,7 +80,7 @@ typeInfos =
 
 iid_ti :: TypeInfo
 iid_ti =
-    TypeInfo 
+    TypeInfo
         { type_name        = "IID"
 	, haskell_type     = toQualName "Com.IID a"
 	, marshaller       = toQualName "Com.marshallIID"
@@ -106,8 +105,8 @@ iid_ti =
 	}
 
 clsid_ti :: TypeInfo
-clsid_ti = 
-  TypeInfo 
+clsid_ti =
+  TypeInfo
         { type_name        = "CLSID"
 	, haskell_type     = toQualName "Com.CLSID"
 	, marshaller       = toQualName "Com.marshallCLSID"
@@ -132,8 +131,8 @@ clsid_ti =
 	}
 
 guid_ti :: TypeInfo
-guid_ti = 
-  TypeInfo 
+guid_ti =
+  TypeInfo
         { type_name        = "GUID"
 	, haskell_type     = toQualName "Com.GUID"
 	, marshaller       = toQualName "Com.marshallGUID"
@@ -161,8 +160,8 @@ mb_currency_ti :: Maybe TypeInfo
 mb_currency_ti = Just currency_ti
 
 currency_ti :: TypeInfo
-currency_ti = 
-  TypeInfo 
+currency_ti =
+  TypeInfo
         { type_name        = "CURRENCY"
 	, haskell_type     = toQualName "Automation.Currency"
 	, marshaller       = toQualName "Automation.marshallCurrency"
@@ -190,8 +189,8 @@ mb_date_ti :: Maybe TypeInfo
 mb_date_ti = Just date_ti
 
 date_ti :: TypeInfo
-date_ti = 
-  TypeInfo 
+date_ti =
+  TypeInfo
         { type_name        = "DATE"
 	, haskell_type     = toQualName "Automation.Date"
 	, marshaller       = toQualName "HDirect.marshallDouble"
@@ -216,9 +215,9 @@ date_ti =
 	}
 
 variant_ti :: TypeInfo
-variant_ti 
+variant_ti
   | optNoOverloadVariant || optServer =
-    TypeInfo 
+    TypeInfo
         { type_name        = "VARIANT"
 	, haskell_type     = toQualName "Automation.VARIANT"
 	, marshaller       = toQualName "Automation.marshallVARIANT"
@@ -242,7 +241,7 @@ variant_ti
 	, attributes	   = Nothing
 	}
   | otherwise =
-    TypeInfo 
+    TypeInfo
         { type_name        = "VARIANT"
 	, haskell_type     = toQualName "a"  -- magic.
 	, marshaller       = toQualName "Automation.marshallVariant"
@@ -272,8 +271,8 @@ variant_ti
 	}
 
 v_bool_ti :: TypeInfo
-v_bool_ti = 
-  TypeInfo 
+v_bool_ti =
+  TypeInfo
         { type_name        = "VARIANT_BOOL"
 	, haskell_type     = toQualName "Prelude.Bool"
 	, marshaller       = toQualName "Automation.marshallVARIANT_BOOL"
@@ -298,8 +297,8 @@ v_bool_ti =
 	}
 
 bstr_ti :: TypeInfo
-bstr_ti = 
-  TypeInfo 
+bstr_ti =
+  TypeInfo
         { type_name        = "BSTR"
 	, haskell_type     = toQualName "Prelude.String"
 	, marshaller       = toQualName "Com.marshallBSTR"

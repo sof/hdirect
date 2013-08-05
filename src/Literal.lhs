@@ -5,7 +5,7 @@
 %
 
 \begin{code}
-module Literal 
+module Literal
 	(
 	  Literal(..)
 
@@ -13,16 +13,16 @@ module Literal
 	, iLit			-- :: Integral a => a -> Literal
 	, iLitToIntegral	-- :: Integral a => IntegerLit -> a
 	, iLitToInteger		-- :: IntegerLit -> Integer
-	
+
 	, ppLit
 	, ppILit
 	, litToString
-	
+
 	) where
 
 import PP
 import Utils
-import List ( intersperse )
+import Data.List ( intersperse )
 import Opts ( optNoQualNames )
 \end{code}
 
@@ -40,16 +40,16 @@ data Literal
  | NullLit
  | GuidLit     [String]
  | LitLit      String   -- lit-lits live on.
-   deriving ( 
+   deriving (
               Show -- for Lex debugging only
             , Eq
-	    ) 
+	    )
 
 data IntegerLit = ILit Int{-base-} Integer
                   deriving (
 		             Show -- for Lex debugging only
 			   , Eq
-			   ) 
+			   )
 iLit :: Integral a => a -> Literal
 iLit x = IntegerLit (ILit 10 (toInteger x))
 
@@ -60,7 +60,7 @@ iLitToInteger :: IntegerLit -> Integer
 iLitToInteger (ILit _ x) = x
 
 litToString :: Literal -> String
-litToString l = 
+litToString l =
   case l of
     IntegerLit  (ILit _ v) -> show v
     StringLit   s -> s
@@ -93,7 +93,7 @@ ppLit (TypeConst s)       = text s
 ppLit (CharLit c)         = text (show c)
 ppLit (WCharLit c)        = text (show c)
 ppLit (FixedPtLit r)      = rational r
-ppLit (FloatingLit (d,x)) 
+ppLit (FloatingLit (d,x))
   | x < 0.0   = parens (text d)
   | otherwise = text d
 ppLit (BooleanLit b)
@@ -105,13 +105,13 @@ ppLit (LitLit ls)         = text ls
 ppLit NullLit             = text "NULL"
 
 ppILit :: IntegerLit -> PPDoc a
-ppILit (ILit base val) = 
+ppILit (ILit base val) =
   case base of
      8  -> text (showOct val "")
      16 -> text (showHex val "")
      10 | val < 0   -> parens (integer val)
         | otherwise -> integer val
-     _  -> trace ("ppILit: No one told me that base " ++ 
+     _  -> trace ("ppILit: No one told me that base " ++
                   show base ++ " was supported!\n") $
            integer val
 

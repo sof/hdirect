@@ -1,4 +1,4 @@
-% 
+%
 % (c) The Foo Project, Universities of Glasgow & Utrecht, 1997-8
 %
 % @(#) $Docid: Nov. 16th 2001  17:13  Sigbjorn Finne $
@@ -13,7 +13,7 @@ module CoreIDL where
 
 import Literal
 import BasicTypes
-import Int ( Int32 )
+import Data.Int ( Int32 )
 import TypeInfo
 \end{code}
 
@@ -29,10 +29,10 @@ data Decl
 		  , isReference :: Bool -- => True, not a defining occurrence, but a use.
 					-- need to make the distinction when dealing with
 					--
-					--    library {  interface IA; ... } 
-					-- 
-					-- and 
-					-- 
+					--    library {  interface IA; ... }
+					--
+					-- and
+					--
 					--    dispinterface { interface IA; }
 					--
 		  , declInherit :: InterfaceInherit
@@ -40,7 +40,7 @@ data Decl
 		  }
   | Module        { declId :: Id, declDecls :: [ModuleDecl]  }
   | DispInterface { declId :: Id
-		  , dispExpandedFrom :: Maybe Decl 
+		  , dispExpandedFrom :: Maybe Decl
 		          -- Just IA => expanded from "dispinterface DA { interface IA; };"
                   , declProps :: [DispInterfaceDecl]
 		  , declDecls :: [DispInterfaceDecl]
@@ -72,14 +72,14 @@ type ModuleDecl        = Decl
 type DispInterfaceDecl = Decl
   -- Method, Property
 
-data CoClassDecl 
+data CoClassDecl
  = CoClassInterface     { coClassId :: Id, coClassDecl :: Maybe Decl }
  | CoClassDispInterface { coClassId :: Id, coClassDecl :: Maybe Decl }
 
 type LibraryDecl       = Decl
   -- any (apart from Library)
 
-type InterfaceInherit = 
+type InterfaceInherit =
    [( QualName
     , Int	    -- Just x => interface contains m methods.
     )]
@@ -131,7 +131,7 @@ data Type
 	    (Maybe Type)	-- the type it expands to.
 	    (Maybe TypeInfo)    -- custom/off-line type info.
 
- | Struct   Id 
+ | Struct   Id
             [Field]
 	    (Maybe Int)		-- packed (in bytes.)
 
@@ -171,10 +171,10 @@ type Signed = Bool
 
 \end{code}
 
-In Core, we pin attributes on Ids: 
+In Core, we pin attributes on Ids:
 
 \begin{code}
-data Id 
+data Id
  = Id {
       idName       :: Name,	    -- a unique, Haskellised name
       idOrigName   :: Name,	    -- source name
@@ -195,7 +195,7 @@ data Id
 
 
 \begin{code}
-data Attribute 
+data Attribute
  = AttrMode ParamDir
  | AttrDependent {
       atReason    :: DepReason,
@@ -204,7 +204,7 @@ data Attribute
  | Attribute {
       atName      :: Name,
       atParams    :: [AttributeParam]
-   } 
+   }
    deriving ( Eq
 {-
 #ifdef DEBUG
@@ -242,10 +242,10 @@ data DepReason
 
 \begin{code}
 data Result =
-   Result { 
-     resultType     :: Type,  -- used 
+   Result {
+     resultType     :: Type,  -- used
      resultOrigType :: Type
-   }  
+   }
      deriving ( Eq
 {-
 #ifdef DEBUG
@@ -274,14 +274,14 @@ data Param
 -}
 	      )
 
-data Switch    
+data Switch
  = Switch {
      switchId	    :: Id,
      switchLabels   :: [CaseLabel],
      switchType     :: Type,
      switchOrigType :: Type
-   } 
- | SwitchEmpty  (Maybe [(CaseLabel,String)]) 
+   }
+ | SwitchEmpty  (Maybe [(CaseLabel,String)])
                             -- Nothing      => default switch.
 			    -- Just [(x,y)] => y is the tag name.
    deriving ( Eq
@@ -294,7 +294,7 @@ data Switch
 -}
 	    )
 
-data CaseLabel 
+data CaseLabel
  = Case Expr | Default
    deriving ( Eq
 {-
@@ -307,7 +307,7 @@ data CaseLabel
 	    )
 
 -- for struct & C union fields
-data Field 
+data Field
  = Field {
      fieldId       :: Id,
      fieldType     :: Type,
@@ -324,7 +324,7 @@ data Field
 -}
 	      )
 
-data EnumValue 
+data EnumValue
  = EnumValue {
      enumName  :: Id,
      enumValue :: (Either Int32 Expr)

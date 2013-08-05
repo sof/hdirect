@@ -6,7 +6,7 @@
 %
 
 Converting the data representing Haskell programs into source
-form. 
+form.
 
 Apart from the pretty printing of the data constructors of
 the various data types representing Haskell constructs (see
@@ -20,7 +20,7 @@ tasks:
    of: "new FFI", ghc FFI, or GreenCard stubs.
 
 \begin{code}
-module PpAbstractH 
+module PpAbstractH
 	(
           ppHTopDecls
 	, ppType
@@ -40,7 +40,7 @@ import Opts	 ( optGreenCard, optTargetGhc, optNoQualNames
 		 )
 import Literal
 import BasicTypes
-import Char  ( isAlpha )
+import Data.Char ( isAlpha )
 import Utils ( notNull )
 import LibUtils
 
@@ -62,14 +62,14 @@ ppHTopDecl :: HTopDecl -> AbsHDoc a
 ppHTopDecl (HMod hm)    = ppHModule hm
 ppHTopDecl (HLit s)     = text s
 ppHTopDecl (CLit _)     = empty
-ppHTopDecl (HInclude s) 
+ppHTopDecl (HInclude s)
   | optGreenCard = text "%include" <+> text s
      -- Only GHC understands this pragma, but its presence shouldn't
      -- seriously offend anyone else...
   | otherwise    = text "{-# OPTIONS -#include" <+> text str <+> text "#-}"
  where
    -- make sure we escape those double quotes.
-  str = 
+  str =
    case s of
      '<':_ -> s
      '"':_ -> s
@@ -85,7 +85,7 @@ ppHModule (HModule nm flg exports imports decls) =
   else
      (case exports of
        [] -> text "module" <+> ppName nm <+> text "where" $$ text ""
-       _  -> 
+       _  ->
          hang (text "module" <+> ppName nm)
           7   (vsep (zipWith (\ x y -> x <+> ppExport y)
 			     (char '(':repeat comma) --)
@@ -93,8 +93,8 @@ ppHModule (HModule nm flg exports imports decls) =
 	       text ") where" $$ text ""))) $$
  (if optNoImports then
      empty
-  else     
-     vsep (map ppImport imports')) $$ 
+  else
+     vsep (map ppImport imports')) $$
  text ""	    $$
  ppHDecl decls      $$
  if (optHugs && flg) then text "needPrims_hugs 4" else text ""
@@ -114,7 +114,7 @@ ppExport (HExport expo comment) = ppIEEntity expo <+> ppComment comment
    ppComment (Just c)  = text "--" <+> text c
 
 ppIEEntity :: HIEEntity -> AbsHDoc a
-ppIEEntity (IEModule nm)     = text "module" <+> ppName nm 
+ppIEEntity (IEModule nm)     = text "module" <+> ppName nm
 ppIEEntity (IEVal nm)        = ppName nm
 ppIEEntity (IEClass c)       = ppName c
 ppIEEntity (IEType nm isAbs) = ppName nm <> if isAbs then empty else text "(..)"
@@ -137,7 +137,7 @@ ppHDecl (TypeSig i mb_ctxt t) =
   ppName i <+> vcat pp_sig
 
 {- One-line style:
-  ppName i <+> text "::" <+> 
+  ppName i <+> text "::" <+>
   (case mb_ctxt of
     Nothing -> empty
     Just ct -> ppContext True ct) <+>
@@ -150,17 +150,17 @@ ppHDecl (TypeSig i mb_ctxt t) =
   pp_tys = pp_ctxt (map ppFunType (args ++ [res]))
   pp_sig = zipWith (<+>) seps pp_tys
 
-  pp_ctxt rest = 
+  pp_ctxt rest =
     case mb_ctxt of
       Nothing -> rest
       Just x  -> ppContext False x : rest
 
-  seps = 
-    text "::" : 
+  seps =
+    text "::" :
     case mb_ctxt of
       Nothing -> arrows
       Just _  -> text "=>" : arrows
-    
+
   arrows = text "->" : arrows
 
 ppHDecl (ValDecl i [p1,p2] ges)
@@ -176,7 +176,7 @@ ppHDecl (ValDecl i pats [g])
 		  2   (ppGuardedExpr (char '=') g) $$
 		 text ""
   where
-    shufflePats = optPatternAsLambda && all isVarPat pats 
+    shufflePats = optPatternAsLambda && all isVarPat pats
     pp_pats
      | shufflePats = equals <+> hsep (map (\ x -> char '\\' <+> ppPat x <+> text "->") pats)
      | otherwise   = hsep (map ppPat pats) <+> equals
@@ -193,14 +193,14 @@ ppHDecl (ValDecl i pats ges) =
 
 ppHDecl (Primitive safe cconv (dllname,_,fun,_) i t has_structs _ _)
  | optTargetGhc   = -- GHC specific
-    (ppName i <+> text "::" <+>  ppType t) $$ 
+    (ppName i <+> text "::" <+>  ppType t) $$
     ppName i <+> hsep arg_names <+> equals <+> text "_ccall_" <+> hsep (text fun:arg_names)
  | optGreenCard = -- GreenCard output
-    (text "%fun"  <+> ppName i <+> text "::" <+>  ppType t') $$ 
+    (text "%fun"  <+> ppName i <+> text "::" <+>  ppType t') $$
      text "%code" <+> assignRes <+> text fun <> ppTuple (arg_names)
  | optHugs = text "primitive" <+> ppName i <+> text "::" <+> ppType t'
  | otherwise = -- FFI decls.
-     text "foreign import"			<+> 
+     text "foreign import"			<+>
      ppCallConv False cconv		        <+>
         -- this is not quite right in the case of Hugs,
 	-- since we will need to supply the name of the stub DLL.
@@ -209,7 +209,7 @@ ppHDecl (Primitive safe cconv (dllname,_,fun,_) i t has_structs _ _)
                   | otherwise   = text (show fun)
      in
      fun_name					                    <+>
-      (if optUnsafeCalls || not safe then text "unsafe" else empty) <+> 
+      (if optUnsafeCalls || not safe then text "unsafe" else empty) <+>
       ppName i <+> text "::"			                    <+>
      ppType t
     where
@@ -218,10 +218,10 @@ ppHDecl (Primitive safe cconv (dllname,_,fun,_) i t has_structs _ _)
 	side right until the very last, when we expand out an Integer into
 	a pair of Int32 arguments and results.
       -}
-     t' 
+     t'
        | optLongLongIsInteger = expandIntegers t
        | otherwise	      = t
-      
+
      -- Use the next line instead if you haven't go the latest
      -- GC sources (i.e., ones which support qualified names).
      -- t'	        = unqualTy t
@@ -233,7 +233,7 @@ ppHDecl (Primitive safe cconv (dllname,_,fun,_) i t has_structs _ _)
 	     "()" -> empty
 	     _    -> text "res1 ="
          _ -> empty
-	      
+
 
      (args,res) = splitFunTys t
      arg_names  = zipWith (\ arg _ -> text ("arg" ++ show arg)) [(1::Int)..] args
@@ -241,11 +241,11 @@ ppHDecl (Primitive safe cconv (dllname,_,fun,_) i t has_structs _ _)
 ppHDecl (PrimCast cconv i ty has_structs args res_ty)
  | optGreenCard =
     text "" $$
-    text "%fun" <+> ppName i <+> text "::" <+>  ppType ty' $$ 
+    text "%fun" <+> ppName i <+> text "::" <+>  ppType ty' $$
     text "%code" $$
     vsepPrefix (text "% ")
      [ ppDeclResult
-     , text "typedef" <+> ppResultType <+> 
+     , text "typedef" <+> ppResultType <+>
           parens ( text "__" <> ppCallConv True cconv <+> char '*' <+> text "__funptr") <+>
 	  ppTuple ppArgs <> semi
      , text "__funptr" <+> ppName i <> semi
@@ -255,11 +255,11 @@ ppHDecl (PrimCast cconv i ty has_structs args res_ty)
     text ""
  | optHugs = text "primitive" <+> ppName i <+> text "::" <+> ppType ty'
  | optTargetGhc =
-   ppName i <+> text "::" <+>  ppType ty $$ 
-   ppName i <+> hsep params <+> equals <+> text "_casm_" <+> 
+   ppName i <+> text "::" <+>  ppType ty $$
+   ppName i <+> hsep params <+> equals <+> text "_casm_" <+>
    ppLitLit (
       ppDeclResult $$
-      text "typedef" <+> ppResultType <+> 
+      text "typedef" <+> ppResultType <+>
         parens ( text "__" <> ppCallConv True cconv <+> char '*' <+> text "__funptr") <+>
 	ppTuple ppArgs <> semi $$
       text "__funptr" <+> ppName i <> semi $$
@@ -267,14 +267,14 @@ ppHDecl (PrimCast cconv i ty has_structs args res_ty)
       ppAssignResult <+> ppName i <> ppTuple ppMethArgs <> semi $$
       ppReturnResult <> semi) <+> hsep params
  | otherwise =
-   text "foreign import" <+> ppCallConv False cconv   <+> 
+   text "foreign import" <+> ppCallConv False cconv   <+>
    (if has_structs then text (show i) else text "\"dynamic\"") <+>
-   (if optUnsafeCalls then text "unsafe" else empty) <+> 
+   (if optUnsafeCalls then text "unsafe" else empty) <+>
    ppName i <+> text "::" <+> ppType ty
   where
     ppLitLit x = text "``" <> x <> text "\'\'"
 
-    ty' 
+    ty'
      | optLongLongIsInteger = expandIntegers ty
      | otherwise	    = ty
 
@@ -288,7 +288,7 @@ ppHDecl (PrimCast cconv i ty has_structs args res_ty)
 
     ppArgs = map (\ (x, arg_ty) -> text (snd arg_ty) <+> text ('a':show x)) (zip [(1::Int)..] (tail args))
 
-    (ppDeclResult, ppResultType, ppAssignResult, ppReturnResult) = 
+    (ppDeclResult, ppResultType, ppAssignResult, ppReturnResult) =
      case res_ty of
        (_,"void") -> ( empty, text "void", empty, empty )
        (_,res)    -> ( text res <+> text "res1" <> semi
@@ -298,11 +298,11 @@ ppHDecl (PrimCast cconv i ty has_structs args res_ty)
 		     )
 
 
-ppHDecl (Entry cconv ci hi t) = 
+ppHDecl (Entry cconv ci hi t) =
   text "foreign export" <+> ppCallConv False cconv <+> text (show ci) <+> ppName hi <+> text "::" <+>
   ppType t
 
-ppHDecl (Callback cconv i t) = 
+ppHDecl (Callback cconv i t) =
   text "foreign export" <+> ppCallConv False cconv <+> text "dynamic" <+> ppName i <+> text "::" <+>
   ppType t
 
@@ -322,7 +322,7 @@ ppHDecl (Instance ctxt cname t decls) =
 ppHDecl (Include s)
   | optGreenCard = text "%#include" <+> text s
   | otherwise    = empty
-  
+
 ppHDecl (Haskell s) = text s
 ppHDecl (CCode s)   = text "{- BEGIN_C_CODE" $$ text s $$ text "END_C_CODE-}"
 ppHDecl EmptyDecl   = empty
@@ -359,7 +359,7 @@ ppPat (PatRecord v fields) =
 
 ppCaseAlt :: CaseAlt -> AbsHDoc a
 ppCaseAlt (Alt p [GExpr [] e]) = ppPat p <+> text "->" <+> ppExpr e
-ppCaseAlt (Alt p ls) = 
+ppCaseAlt (Alt p ls) =
     hang (ppPat p)
      2   (vsep (map (ppGuardedExpr (text "->")) ls))
 ppCaseAlt (Default mb_v e) =
@@ -396,7 +396,7 @@ ifOnTop ifIs ifIsn't =
     ifIsn't
 
 ifDo :: ExprDoc -> ExprDoc -> ExprDoc
-ifDo onTrue onFalse = 
+ifDo onTrue onFalse =
  getPPEnv $ \ (_,flg) ->
  if flg then
     onTrue
@@ -423,11 +423,11 @@ ppExprDo (Lam pats e) = char '\\' <+> hsep (map ppPat pats) <+> text "->" <+> se
 ppExprDo (Apply (Apply e args1) args2) = ppExprDo (Apply e (args1++args2))
 ppExprDo (Apply e [])      = ppExprDo e
 ppExprDo (Apply e@(Lam _ _) args) = parens (ppExprDo e) <+> hsep (map ppArg args)
-ppExprDo (Apply e args)    = 
+ppExprDo (Apply e args)    =
   ifOnTop (ppExprDo e <+> vsep (map ppArg args))
           (ppExprDo e <+> hsep (map ppArg args))
 ppExprDo (RApply e1 (Lam pats e2))  =
-  ppExprDo e1 <+> ppVarName dollarName <+> char '\\' <+> 
+  ppExprDo e1 <+> ppVarName dollarName <+> char '\\' <+>
   hsep (map ppPat pats) <+> text "->" $$ ppExprDo e2
 ppExprDo (RApply e1 e2)  =
   ppExprDo e1 <+> ppVarName dollarName <+> ppExprDo e2
@@ -435,7 +435,7 @@ ppExprDo (Tup args)         = ppTuple (map ppExprDo args)
 ppExprDo (List elts)        = ppListVert (map ppExprDo elts)
 ppExprDo (InfixOp e1 op e2) = ppExprDo e1 <+> ppr_op <+> ppExprDo e2
    where
-     ppr_op 
+     ppr_op
        | not (isOpName op) = ppVarName op
        | otherwise	   = char '`' <> ppVarName op <> char '`'
 
@@ -444,7 +444,7 @@ ppExprDo (UnOp uop e)      = parens ( ppUnOp uop <+> ppExprDo e)
 ppExprDo (Bind m p n)      =
    ifTop (\ d -> hang (text "do") 2 (setDo True d)) (id)
          (ifDo ((ppPat p <+> text "<-" <+> ppExprDo m) $$ ppExprDo n)
-               (hang (ppExprDo m <+> ppQualName bindName <+> 
+               (hang (ppExprDo m <+> ppQualName bindName <+>
 	                  char '\\' <+> ppPat p <+> text "->")
                  0   (ppExprDo n)))
  -- this assumes that m has type "M ()", which is the
@@ -462,7 +462,7 @@ ppExprDo (Bind_ m n)       =
 
 ppExprDo (Return e@(Tup _)) = ppQualName prelReturn <+> ppExprDo e
 ppExprDo (Return e)         = ppQualName prelReturn <+> parens (ppExprDo e)
-ppExprDo (If c e1 e2)       = 
+ppExprDo (If c e1 e2)       =
   hang (text "if" <+> ppExprDo c)
    2   (text "then" <+> ppExprDo e1 $$
    	text "else" <+> ppExprDo e2)
@@ -480,7 +480,7 @@ ppExprDo (Let binders e)    =
 ppExprDo (WithTy e ty) = parens (ppExprDo e <+> text "::" <+> ppType ty)
 \end{code}
 
-Expressions in argument position - leave out 
+Expressions in argument position - leave out
 as many parens as possible:
 
 \begin{code}
@@ -545,26 +545,26 @@ setPrec :: Int -> TypeDoc -> TypeDoc
 setPrec = setPPEnv
 
 gePrec :: Int -> TypeDoc -> TypeDoc -> TypeDoc
-gePrec prec onTrue onFalse = 
+gePrec prec onTrue onFalse =
   getPPEnv $ \ val ->
   if val >= prec then
      onTrue
   else
      onFalse
-     
+
 ppTypePrec :: Type -> TypeDoc
 ppTypePrec (TyVar _ tv)       = ppTyVar tv
 ppTypePrec (TyCon tc)         = ppTyCon tc
 ppTypePrec (TyApply con [])   = ppTypePrec con
-ppTypePrec (TyApply con args) = 
+ppTypePrec (TyApply con args) =
    mbParen tycon_prec (setPrec tycon_prec $ hsep (map ppTypePrec (con:args)))
-ppTypePrec (TyList t)         = 
+ppTypePrec (TyList t)         =
    brackets (setPrec top_prec (ppTypePrec t))
-ppTypePrec (TyTuple ts)       = 
+ppTypePrec (TyTuple ts)       =
    setPrec top_prec (ppTuple (map ppTypePrec ts))
 ppTypePrec (TyCtxt ctxt t)    =
    ppContext True ctxt <+> ppTypePrec t
-ppTypePrec (TyFun a b)        = 
+ppTypePrec (TyFun a b)        =
    mbParen fun_prec ((setPrec fun_prec (ppTypePrec a)) <+> text "->" <+> setPrec top_prec (ppTypePrec b))
 
 mbParen :: Int -> TypeDoc -> TypeDoc
@@ -607,7 +607,7 @@ ppConDecls (dcon:dcons) =
 
 ppConDecl :: ConDecl -> AbsHDoc a
 ppConDecl (RecDecl nm fields)
-  | null fields = ppName nm 
+  | null fields = ppName nm
   | otherwise   =
      ppName nm <+> braces (vsep (punctuate comma (map ppField fields)))
       where
@@ -657,16 +657,16 @@ unqualTy t =
 ppGuardedExprs :: [GuardedExpr] -> AbsHDoc a
 ppGuardedExprs []             = empty -- bogus, but we won't flag this fact here.
 ppGuardedExprs [(GExpr [] e)] = equals <+> (ppExpr e)
-ppGuardedExprs ls	      = 
+ppGuardedExprs ls	      =
    vcat (map (\ (GExpr gs e) ->
-		text "|" <+> 
-		hsep (punctuate comma (map ppExpr gs)) <+> 
+		text "|" <+>
+		hsep (punctuate comma (map ppExpr gs)) <+>
 		equals <+>
 		(ppExpr e)) ls)
 
 ppGuardedExpr :: AbsHDoc a -> GuardedExpr -> AbsHDoc a
 ppGuardedExpr _    (GExpr [] e) = ppExpr e
-ppGuardedExpr sepr (GExpr gs e) = 
+ppGuardedExpr sepr (GExpr gs e) =
   text "|" <+> hsep (punctuate comma (map ppExpr gs)) <+> sepr <+> ppExpr e
 
 \end{code}
@@ -675,15 +675,15 @@ ppGuardedExpr sepr (GExpr gs e) =
 ppTyDecl :: TyDecl -> AbsHDoc a
 ppTyDecl (TypeSyn nm args ty) = text "type" <+> hsep (map text (nm:args)) <+> equals <+> ppType ty
 ppTyDecl (TyDecl Data tycon ty_args [con_decl] derivs) =
-  ppTyDeclKind Data       <+> 
+  ppTyDeclKind Data       <+>
   ppName tycon            <+>
-  hsep (map text ty_args) <+> 
+  hsep (map text ty_args) <+>
   equals		  <+>
   hang (ppConDecl con_decl)
    2   (ppDeriving derivs)
 
 ppTyDecl (TyDecl kind tycon ty_args con_decls derivs) =
-  hang (ppTyDeclKind kind <+> ppName tycon <+> hsep (map text ty_args)) 
+  hang (ppTyDeclKind kind <+> ppName tycon <+> hsep (map text ty_args))
    1   (ppConDecls con_decls $$ -- nb: ppConDecls insert the '='
         ppDeriving derivs)
 \end{code}
@@ -691,7 +691,7 @@ ppTyDecl (TyDecl kind tycon ty_args con_decls derivs) =
 \begin{code}
 ppDeriving :: [QualName] -> AbsHDoc a
 ppDeriving [] = text "" -- want a new line
-ppDeriving ds = 
+ppDeriving ds =
   text "deriving" <+> ppTuple (map ppQName ds) <> text ""
 \end{code}
 
@@ -704,7 +704,7 @@ ppValName i
 
 \begin{code}
 isOpName :: QualName -> Bool
-isOpName q = 
+isOpName q =
   case qName q of
     ""    -> False
     (n:_) -> not (isAlpha n) && n /= '_'

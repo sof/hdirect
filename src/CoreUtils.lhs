@@ -8,12 +8,12 @@
 A hodgepodge of helper functions over the CoreIDL data types.
 
 \begin{code}
-module CoreUtils 
+module CoreUtils
 	(
 	  mkId
 	, setIdModule
 	, mkParam
-	
+
 	, flattenDecls
 	, reallyFlattenDecls
 	, inSeparateHaskellModule
@@ -21,9 +21,9 @@ module CoreUtils
 	, findFieldOrigTy
 	, findParam
 	, findParamTy
-	
+
 	, localiseTypes
-	
+
 	, getTypeAttributes        -- :: Type -> [Attribute]
 	, getHsImports             -- :: Id   -> [QualName]
 
@@ -90,7 +90,7 @@ module CoreUtils
 	, dateTy
 	, fileTimeTy
 	, safeArrayTy
-	
+
 	, iUnknownTy
 	, iDispatchTy
 	, hresultTy
@@ -112,7 +112,7 @@ module CoreUtils
 	, rawPointerToIP
         , notAggregatableAttribute
 	, childAttributes
-	
+
 	, getTyTag
 	, findFreeVars
 	, solve
@@ -126,7 +126,7 @@ module CoreUtils
 	, plusOne
 	, minusOne
 	, add
-	
+
 	, sizeofType
 	, sizeAndAlignModulus
 	, computeStructSizeOffsets
@@ -161,34 +161,34 @@ module CoreUtils
 	, mkHaskellTyConName
 
 	, toCType
-	
+
 	, mkIfaceTypeName
 	, getInterfaceIds      -- :: Decl -> [Id]
-	
+
 	, idHaskellModule
-	
+
 	, isMethod
 	, isConst
 	, isMethodOrProp
 	, isProperty
 	, isCoClass
-	
+
 	, dummyMethod
-	
+
 	, unionToStruct
-	
+
 	, binParams
 	, objParam
 	, resultParam
 	, iPointerParam
-	
+
 	, derivesFromIDispatch
 	, toDispInterfaceMethod
 
 	, sortDecls
-	
+
 	, isFinalisedType
-	
+
 	) where
 
 import CoreIDL
@@ -208,19 +208,15 @@ import PpCore ( ppType, showCore, ppExpr )
 import Digraph
 import Utils
 
-import Maybe  ( mapMaybe, fromMaybe, mapMaybe, isJust )
-import List   ( partition )
-import Char   ( toLower, toUpper, isLower, isUpper, isAlpha, isDigit )
+import Data.Maybe ( mapMaybe, fromMaybe, mapMaybe, isJust )
+import Data.List
+import Data.Char ( toLower, toUpper, isLower, isUpper, isAlpha, isDigit )
 import TypeInfo
 import NativeInfo
 import Env
-import Int
-import List
-import Bits
-{- BEGIN_GHC_ONLY
-import GlaExts
-   END_GHC_ONLY -}
-	
+import Data.Int
+import Data.Bits
+
 \end{code}
 
 \begin{code}
@@ -253,14 +249,14 @@ flatDecls :: Bool
 	  -> [Decl]
 	  -> [Decl]
 flatDecls _ _ [] = []
-flatDecls isTopLev predic (Module i ds : rs) = 
+flatDecls isTopLev predic (Module i ds : rs) =
    ( lift ++ (Module i don't_lift : flatDecls isTopLev predic rs) )
-    where (lift, don't_lift) = partition predic ds 
+    where (lift, don't_lift) = partition predic ds
 flatDecls isTopLev predic (Library i ds : rs)
     | not isTopLev = Library i ds : flatDecls isTopLev predic rs
     | otherwise    = (Library i don't_lift) : lift ++ flatDecls False predic rs
-    where 
-     (lift, don't_lift) = partition (\ x -> predic x && not (isLibrary x)) ds 
+    where
+     (lift, don't_lift) = partition (\ x -> predic x && not (isLibrary x)) ds
 
      isLibrary (Library _ _) = True
      isLibrary _	     = False
@@ -286,7 +282,7 @@ inSeparateHaskellModule _	        = False
  float it into that interface.
 -}
 localiseTypes :: [Decl] -> [Decl]
-localiseTypes ds 
+localiseTypes ds
  | not optOneModulePerInterface = ds
  | otherwise = --trace (show (map fst $ envToList moveEnv, envToList uniqueEnv, allTD_Names)) $
                mapMaybe moveTypes ds
@@ -294,12 +290,12 @@ localiseTypes ds
     moveTypes d@Typedef{declId=i}
       | isJust (lookupEnv uniqueEnv (idName i)) = Nothing
       | otherwise = Just d
-    moveTypes (Module i ds1)  = 
+    moveTypes (Module i ds1)  =
         let ds' = mapMaybe moveTypes ds1 in
 	case lookupEnv moveEnv (idName i) of
 	   Just ts -> Just (Module i (map (adjustMod (idName i) ts) (ts ++ ds')))
            _ -> Just (Module i ds')
-    moveTypes (Library i ds1) = 
+    moveTypes (Library i ds1) =
         let ds' = mapMaybe moveTypes ds1 in
 	case lookupEnv moveEnv (idName i) of
 	   Just ts -> Just (Library i (map (adjustMod (idName i) ts) (ts ++ ds')))
@@ -313,10 +309,11 @@ localiseTypes ds
           Just ts -> Just d{declDecls=map (adjustMod (idName i) ts) (ts ++ declDecls d)}
 	  Nothing -> Just d
     moveTypes d = Just d
-    
+
     adjustMod nm ls d = foldl adj d ls
       where
         adj acc Typedef{declId=i} = adjustModName (idName i) nm acc
+	adj acc _ = acc
 
     moveEnv :: Env String{-type name-}
     		   [Decl] {- _declarations_ to be added-}
@@ -324,7 +321,7 @@ localiseTypes ds
     			     newEnv
     		             (mapMaybe findDecl (envToList uniqueEnv))
      where
-       findDecl (nm,use) = 
+       findDecl (nm,use) =
          case find (withName nm) typesMoving of
 	   Just d  -> Just (use,[d])
 	   Nothing -> Nothing
@@ -341,7 +338,7 @@ localiseTypes ds
 
     allTDs = concatMap allTypedefs ds
      where
-       allTypedefs d = 
+       allTypedefs d =
           case d of
 	   Typedef{}     -> [d]
            Module _ ds1  -> concatMap allTypedefs ds1
@@ -351,7 +348,7 @@ localiseTypes ds
 	   _            -> []
 
 
-     -- environment mapping type names to the name of the _only_ 
+     -- environment mapping type names to the name of the _only_
      -- declaration that uses it.
     uniqueEnv :: Env String{-used type name-}
     		     String{-where it is used-}
@@ -362,7 +359,6 @@ localiseTypes ds
 	     [x] | x `notElem` allTD_Names -> Just x -- only interested if it was used at a
 	     					     -- a non typedef-site (=> in an interface).
 	     _ -> Nothing
-       isOfInterest _ _   = Nothing
 
     useEnv :: Env String   {- used type name -}
                   [String] {- names of decls that uses type -}
@@ -370,22 +366,22 @@ localiseTypes ds
       where
         addIt env (_decl,d,us) = foldl (addUse d) env us
 	addUse nm env use     = addToEnv_C (++) env use [nm]
-	   
+
     use_info = concatMap mkDeps ds
      where
-       mkDeps d = 
-         case d of 
+       mkDeps d =
+         case d of
 	   Module  _ ds1 -> concatMap mkDeps ds1
 	   Library _ ds1 -> concatMap mkDeps ds1
 	   _             -> [mkDeclDep d]
 
 
 adjustModName :: String -> String -> Decl -> Decl
-adjustModName nm newMod d = 
+adjustModName nm newMod d =
   case d of
     Typedef i ty oty  -> Typedef i (adjustType ty) (adjustType oty)
     Constant i ty oty e -> Constant i (adjustType ty) (adjustType oty) e
-    Interface i flg inh ds -> Interface i flg (map adjustInherit inh) 
+    Interface i flg inh ds -> Interface i flg (map adjustInherit inh)
     					      (map (adjustModName nm newMod) ds)
     DispInterface i expF ps ds -> DispInterface i (fmap (adjustModName nm newMod) expF)
     						  (map  (adjustModName nm newMod) ps)
@@ -401,13 +397,13 @@ adjustModName nm newMod d =
    	p{paramType=adjustType ty,paramOrigType=adjustType oty}
 
    adjustInherit (qnm,i) = (adjustQName qnm, i)
-   
-   adjustQName qnm 
+
+   adjustQName qnm
      | qName qnm == nm ||
        qOrigName qnm == nm = qnm{qModule=Just newMod,qDefModule=Just newMod}
      | otherwise = qnm
 
-   adjustType ty = 
+   adjustType ty =
       case ty of
         Integer{} -> ty
 	StablePtr{} -> ty
@@ -422,7 +418,7 @@ adjustModName nm newMod d =
 	String t flg mb -> String (adjustType t) flg mb
 	WString{} -> ty
 	Fixed{}   -> ty
-	Name n onm mbMod attrs mbTy mbTi 
+	Name n onm mbMod attrs mbTy mbTi
 	  | n == nm   -> Name n onm (Just newMod) attrs (fmap adjustType mbTy) mbTi
 	  | otherwise -> Name n onm mbMod attrs (fmap adjustType mbTy) mbTi
         Struct i fs p -> Struct i (map adjustField fs) p
@@ -432,8 +428,9 @@ adjustModName nm newMod d =
 	CUnion i fs p -> CUnion i (map adjustField fs) p
 	Pointer p flg t -> Pointer p flg (adjustType t)
 	Array t e     -> Array (adjustType t) e
+	Sequence t a b -> Sequence (adjustType t) a b
 	Void{}        -> ty
-	Iface n md onm attrs flg ih 
+	Iface n md onm attrs flg ih
 	  | n == nm || onm == nm -> Iface n (Just newMod) onm attrs flg (map adjustInherit ih)
 	  | otherwise -> Iface n md onm attrs flg (map adjustInherit ih)
         SafeArray t   -> SafeArray (adjustType t)
@@ -460,7 +457,7 @@ isMethodOrProp _	  = False
 
 isProperty :: Decl -> Bool
 isProperty Property{}       = True
-isProperty Method{declId=i} = 
+isProperty Method{declId=i} =
   attrs `hasAttributeWithNames` ["propget", "propput", "propputref"]
 
  where
@@ -486,7 +483,7 @@ dummyMethod = Method (mkId "dummy" "dummy" Nothing [])
 getInterfaceIds :: Decl -> [Id]
 getInterfaceIds decl = reverse (go [] decl)
  where
-   go acc d = 
+   go acc d =
      case d of
 	Interface{} -> foldl go ((declId d):acc) (declDecls d)
 	Module _ ds -> foldl go acc ds
@@ -524,8 +521,8 @@ Fish out attributes attached to type:
 
 \begin{code}
 getTypeAttributes :: Type -> [Attribute]
-getTypeAttributes ty = 
-  case ty of 
+getTypeAttributes ty =
+  case ty of
     Name _ _ _ mb_as mb_ty _  -> fromMaybe [] mb_as ++
     			         fromMaybe [] (fmap getTypeAttributes mb_ty)
     Struct i _ _ -> idAttributes i
@@ -551,13 +548,13 @@ getHsImports i = imp_attrs
   imp_attrs = mapMaybe toHsImport attrs
 
   attrs = filterAttributes (idAttributes i) ["hs_import"]
-  
+
   toHsImport :: Attribute -> Maybe QualName
   toHsImport a =
     case a of
       Attribute _ [ParamLit (StringLit s)] ->
          let qNm = toQualName s in
-         case qModule qNm of 
+         case qModule qNm of
 	   Nothing -> Nothing
 	   Just _  -> Just (qNm{qDefModule=qModule qNm})
       _ -> Nothing
@@ -618,7 +615,7 @@ isSafeArrayTy SafeArray{}  = True
 isSafeArrayTy (Name _ _ _ _ (Just t) _) = isSafeArrayTy t
 isSafeArrayTy _           = False
 
-isOpenArrayTy :: Type -> Bool 
+isOpenArrayTy :: Type -> Bool
 isOpenArrayTy (Array _ []) = True
 isOpenArrayTy _		   = False
 
@@ -940,14 +937,14 @@ isSynTy Name{} = True
 isSynTy _      = False
 
 isAbstractTy :: Type -> Bool
-isAbstractTy Iface{} = optHaskellToC 
+isAbstractTy Iface{} = optHaskellToC
 isAbstractTy (Pointer _ _ Iface{}) = optHaskellToC
 isAbstractTy _		 = False
 
 isAbstractFinalTy :: Type -> Bool
 isAbstractFinalTy (Iface _ _ _ attrs _ _)
   = optHaskellToC && attrs `hasAttributeWithName` "finaliser"
-isAbstractFinalTy (Pointer _ _ (Iface _ _ _ attrs _ _)) 
+isAbstractFinalTy (Pointer _ _ (Iface _ _ _ attrs _ _))
   = optHaskellToC && attrs `hasAttributeWithName` "finaliser"
 isAbstractFinalTy _
   = False
@@ -1006,7 +1003,7 @@ isIUnknownTy _			   = False
 isIfacePtr :: Type -> Bool
 isIfacePtr (Name _ _ _ _ (Just t) _) = isIfacePtr t
 isIfacePtr (Pointer _ _ (Iface{})) = True
-isIfacePtr (Pointer _ _ t) = 
+isIfacePtr (Pointer _ _ t) =
   case (removeNames t) of
     Iface{} -> True
     _       -> False
@@ -1056,7 +1053,7 @@ is given as first argument.
 solve :: Name -> Expr -> Expr -> Expr
 solve nm lhs (Cast _ e)     = solve nm lhs e
 solve nm lhs (Unary op rhs) = solve nm (Unary op lhs) rhs
-solve nm lhs (Binary op e1 e2) 
+solve nm lhs (Binary op e1 e2)
  | contains nm e1 = solve nm (Binary op' lhs e2) e1
  | isCommutative op && contains nm e2 = solve nm (Binary op' lhs e1) e2
  | contains nm e2 = solve nm (Binary op e1 lhs) e2
@@ -1081,7 +1078,7 @@ complementOp Le  = Ge
 complementOp Lt  = Gt
 complementOp LogOr  = LogAnd
 complementOp LogAnd = LogOr
-complementOp Xor = Xor 
+complementOp Xor = Xor
 
 isCommutative :: BinaryOp -> Bool
 isCommutative Add = True
@@ -1108,14 +1105,14 @@ add e1 e2 = Binary Add e1 e2
 \begin{code}
 
 evalExpr :: Expr -> Integer
-evalExpr e = 
+evalExpr e =
  case e of
     {-
-     In order to be correct, evaluation needs to 
+     In order to be correct, evaluation needs to
      be type driven
     -}
-   Binary bop e1 e2 -> 
-      let 
+   Binary bop e1 e2 ->
+      let
         i1 = evalExpr e1
         i2 = evalExpr e2
       in
@@ -1138,7 +1135,7 @@ evalExpr e =
 	Le  -> if i1 <= i2 then 1 else 0
 	Lt  -> if i1 <  i2 then 1 else 0
 	Ne  -> if i1 /= i2 then 1 else 0
-	
+
    Cond e1 e2 e3 ->
       let
        i1 = evalExpr e1
@@ -1149,7 +1146,7 @@ evalExpr e =
          i2
       else
          i3
-   Unary  uop e1 -> 
+   Unary  uop e1 ->
       let
        i1 = evalExpr e1
       in
@@ -1164,7 +1161,7 @@ evalExpr e =
    Cast _ e1     -> evalExpr e1
    Sizeof t     -> fromIntegral (sizeofType t)
    _ -> error ("CoreUtils.evalExpr: Unmatched case for: " ++ showCore (ppExpr e))
- 
+
 \end{code}
 
 Expand out occurrences of @(Var x)@ and @(Sizeof t)@:
@@ -1175,10 +1172,10 @@ simpRedExpr  :: Env String (Either Int32 Expr)
 	     -> Type
 	     -> Expr
 	     -> Expr
-simpRedExpr env ty ex = 
+simpRedExpr env ty ex =
    case (simplifyExpr env ex) of
      e@(Lit _) -> e
-     e         -> 
+     e         ->
 	 case ty of
 	   Integer _ _ -> Lit (iLit (evalExpr e))  -- reduce 'int'y things.
 	   _	       -> e
@@ -1186,7 +1183,7 @@ simpRedExpr env ty ex =
 simplifyExpr :: Env String (Either Int32 Expr)
 	     -> Expr
 	     -> Expr
-simplifyExpr val_env ex = 
+simplifyExpr val_env ex =
   case ex of
     Binary bop e1 e2 -> Binary bop (simplifyExpr val_env e1)
     				   (simplifyExpr val_env e2)
@@ -1194,7 +1191,7 @@ simplifyExpr val_env ex =
     			  (simplifyExpr val_env e2)
 			  (simplifyExpr val_env e3)
     Unary op e -> Unary op (simplifyExpr val_env e)
-    Var nm     -> 
+    Var nm     ->
       case lookupEnv val_env nm of
         Nothing        -> Var nm -- good luck!
 	Just (Left x)  -> Lit (iLit (toInteger x))
@@ -1202,8 +1199,8 @@ simplifyExpr val_env ex =
     Lit l      -> Lit l
       -- notice that casting would have been trickier
       -- to deal with if the expression language permitted
-      -- sizeof(x), where x is an expression, since 
-      -- sizeof((t)x) == sizeof(t) 
+      -- sizeof(x), where x is an expression, since
+      -- sizeof((t)x) == sizeof(t)
     Cast t e   -> Cast t (simplifyExpr val_env e)
     Sizeof t   -> Lit (iLit (toInteger (sizeofType t)))
 
@@ -1232,11 +1229,11 @@ containing its dependencies.
 
 type DependInfo = [(Id,[Dependent])]
 
-data DepVal 
+data DepVal
  = DepNone  -- empty/unspecified (for this dimension.)
  | DepVal (Maybe Name) -- a dependent value might contain at most one
 		       -- free variable which refers to another field/param.
-	  Expr	       -- 
+	  Expr	       --
 -- for debugging purps. only
    deriving (Show)
 
@@ -1285,7 +1282,7 @@ attrToDependent _ = error "attrToDependent"
 computeArrayConstraints :: Bool
 			-> [Dependent]
 			-> ([DepVal], [DepVal], [DepVal])
-computeArrayConstraints unmarshalling deps 
+computeArrayConstraints unmarshalling deps
  | unmarshalling = (trans_start_posns, trans_end_posns, trans_lengths)
  | otherwise     = (trans_start_posns, trans_end_posns, alloc_sizes)
  where
@@ -1294,7 +1291,7 @@ computeArrayConstraints unmarshalling deps
     -- are likely to be very short, so merging the passes into
     -- one is likely to cost more than it saves.
 
---not supported, and of little use 
+--not supported, and of little use
 --when we're representing lists as arrays:
 -- mins    = filter isMinIs deps
    maxs    = mapHead (\ (Dep _ ls) -> ls) $ filter isMaxIs deps
@@ -1329,7 +1326,7 @@ computeArrayConstraints unmarshalling deps
    genEnd d	   _             _ = d
 
    {- The upper allocation boundary is determined by looking at either the max_is()
-      or size_is(). max_is 
+      or size_is(). max_is
    -}
    genUpperBound DepNone      DepNone
      = DepNone --error "genUpperBound: max_is nor size_is value not specified (need one of them.)"
@@ -1387,7 +1384,7 @@ isSwitchIs (Dep SwitchIs _) = True
 isSwitchIs _		    = False
 
 lookupDepender :: DependInfo -> Id -> Maybe [Dependent]
-lookupDepender ls i = 
+lookupDepender ls i =
  case (filter (\ (i1, _) -> idName i1 == nm) ls) of
    ((_,ls2):_) -> Just ls2
    _	       -> Nothing
@@ -1398,15 +1395,15 @@ isDepender :: DependInfo -> Id -> Bool
 isDepender ls i = any isDependerElem ls
   where
    nm = idName i
- 
-   isDependerElem (x,deps) = idName x == nm  && 
+
+   isDependerElem (x,deps) = idName x == nm  &&
 			     notNull deps
 
 isSwitchDepender :: DependInfo -> Id -> Bool
 isSwitchDepender ls i = any isElem ls
   where
    nm = idName i
- 
+
    isElem (x,deps) = idName x == nm  && any (isSwitchIs) deps
 
 isDependee :: DependInfo -> Id -> Bool
@@ -1453,14 +1450,14 @@ Translating an IDL type name into a valid Haskell variable name.
 
 \begin{code}
 mkHaskellVarName :: Name -> Name
-mkHaskellVarName nm 
+mkHaskellVarName nm
   | optClassicNameMangling = toHask (casifyName nm)
   | otherwise		   = toHask nm
  where
   toHask [] = "anon" -- shouldn't happen!
 --  toHask ('_':xs) = toHask xs -- drop leading underscores.
   toHask (x:xs) | not (isAlpha x) = toHask xs  -- anything non-alphabetic, really.
-  toHask ls@(x:xs) 
+  toHask ls@(x:xs)
       | isUpper x = toLower x : map (subst '$' '_') xs
       | otherwise = map (subst '$' '_') ls
 
@@ -1474,15 +1471,15 @@ constructor name.
 
 \begin{code}
 mkHaskellTyConName :: Name -> Name
-mkHaskellTyConName nm 
+mkHaskellTyConName nm
   | optClassicNameMangling = casifyName nm
   | otherwise              = toHask nm
  where
   toHask [] = "Anon" -- shouldn't happen!
-  toHask (x:xs) | not (isAlpha x) = toHask xs  -- it's a non-starter with anything 
+  toHask (x:xs) | not (isAlpha x) = toHask xs  -- it's a non-starter with anything
 					       -- non-alphabetic at the front (i.e.,
 					       -- don't want '_' there).
-  toHask ls@(x:xs) 
+  toHask ls@(x:xs)
         | isLower x = toUpper x : map (subst '$' '_') xs
         | otherwise = map (subst '$' '_') ls
 
@@ -1511,7 +1508,7 @@ emit _casm_s that performs the actual invocation of COM methods.
 \begin{code}
 toCType :: Type -> Either String -- (primitive / FFI supported) C type
 			  String -- other; need C impedance matching code.
-toCType ty = 
+toCType ty =
  case ty of
    Char signed
      | signed    -> Left "signed char"
@@ -1527,7 +1524,7 @@ toCType ty =
      | signed    -> Left (sizeToString sz)
      | otherwise -> Left ("unsigned " ++ sizeToString sz)
    StablePtr -> Left "unsigned long"
-   Float sz -> 
+   Float sz ->
       case sz of
        Short    -> Left "float"
        Long     -> Left "double"
@@ -1548,21 +1545,21 @@ toCType ty =
    Name _ onm _ _ _  (Just ti) | not (is_pointed ti) -> Left (c_type ti)
    			       | otherwise -> Right onm
    Name _ onm _ _ Nothing  _   -> Right onm
-   Name _ onm _ _ (Just t) _  
+   Name _ onm _ _ (Just t) _
      | isConstructedTy t   -> if isEnumTy ty || isFunTy ty then toCType t else Right onm
      | otherwise           -> toCType t
-   Pointer _ _ (Name _ _ _ (Just as) _ _)   -> 
+   Pointer _ _ (Name _ _ _ (Just as) _ _)   ->
        case findAttribute "ctype" as of
 	 Just (Attribute _ [ParamLit (StringLit t)]) -> Left t
          _ -> Left "void*"
    Pointer _ _ (t@Iface{})   ->
          case toCType t of
-	     Left l 
+	     Left l
 	         -- confusingly, IA and IA* are the same thing when in 'C mode',
 		 -- so qualify the addition of an indirection accordingly.
 		 -- Ditto on the 'COM' side - if we end up with just 'IA' (which
 		 -- we shouldn't), treat this as IA*.
-		 -- 
+		 --
 	             -> Left l
 	     Right x -> Right x
    Pointer{}    -> Left "void*"
@@ -1605,20 +1602,20 @@ findPtrType isTop ls =
    -- any setting of a pointer default.
   case (filter isPtrAttr ptr_ls) of
     ((Attribute kind []):_) -> Pointer (stringToPointerType kind) True
-    [] 
+    []
      | isTop     -> Pointer Ref False
-     | otherwise -> 
+     | otherwise ->
          case (filter isPtrDefault ptr_ls) of
 	    ((Attribute _ [ParamVar v]):_) -> Pointer (stringToPointerType v) False
-	    [] -> 
+	    [] ->
 		case optPointerDefault of
 		  Nothing -> Pointer Unique False
 		  Just x  -> Pointer (stringToPointerType x) False
   where
    ptr_ls = filter isPtrAttrib ls
-   
+
    isPtrAttrib a = isPtrDefault a || isPtrAttr a
- 
+
    isPtrDefault (Attribute "pointer_default" [ParamVar _]) = True
    isPtrDefault _ = False
 
@@ -1676,19 +1673,19 @@ binParams ps = foldr binParam ([],[],[],[],[]) ps
 
 \begin{code}
 iPointerParam :: Name -> Param
-iPointerParam nm = 
+iPointerParam nm =
   mkParam "iptr" In
           (Pointer Ptr True (Name (mkHaskellTyConName nm) nm Nothing Nothing Nothing Nothing))
 
 objParam :: Name -> Param
-objParam nm = 
+objParam nm =
   mkParam "obj" In
           (Name (mkHaskellTyConName nm) nm Nothing Nothing Nothing Nothing)
 
 resultParam :: Type -> Param
 resultParam ty = mkParam "result" Out ty
 \end{code}
-     
+
 Reduce fancy unions down to C-style unions and structs.
 
 \begin{code}
@@ -1698,7 +1695,7 @@ unionToStruct t =
     UnionNon un_tag sws			  -> (Nothing, CUnion un_tag fields Nothing)
 	 where
 	  fields = map switchToField sws
-    Union enc_struct_tag tag_ty tg un_tag sws -> 
+    Union enc_struct_tag tag_ty tg un_tag sws ->
 	( Just (un_tag{idName=un_ty_nm, idOrigName=un_ty_nm}, c_union)
 	, Struct enc_struct_tag
 	       [ Field un_tag nm_ty nm_ty Nothing Nothing
@@ -1722,15 +1719,17 @@ Check whether an interface derives from IDispatch or not.
 
 \begin{code}
 derivesFromIDispatch :: CoClassDecl -> Bool
-derivesFromIDispatch (CoClassInterface _ mb_decl) = 
+derivesFromIDispatch (CoClassInterface _ mb_decl) =
   case mb_decl of
     Nothing -> False -- worth a warning?
-    Just d  -> 
+    Just d  ->
       case d of
         Interface{declId=i,declInherit=inherits} ->
-	   idOrigName i == "IDispatch" || 
+	   idOrigName i == "IDispatch" ||
 	   any (\ (x,_) -> qName x == "IDispatch") inherits
 	DispInterface{} -> True
+	_ -> error "derivesFromIDispatch: unexpected declaration"
+
 derivesFromIDispatch _  = True
 \end{code}
 
@@ -1738,14 +1737,14 @@ derivesFromIDispatch _  = True
 toDispInterfaceMethod :: Decl -> Decl
 toDispInterfaceMethod (Method i cc _ ps off) =
      case break ((\ x -> hasAttributeWithName x "retval").idAttributes.paramId) ps of
-       (bef,p:aft) -> 
+       (bef,p:aft) ->
 	  let
 	   ty   = removePtr (paramType p)
 	   o_ty = removePtr (paramOrigType p)
 	  in
           Method i cc (Result ty o_ty) (bef++aft) off
        _ -> Method i cc (Result voidTy voidTy) ps off
-   
+
 toDispInterfaceMethod d = d
 
 \end{code}
@@ -1762,7 +1761,7 @@ sortDecls ds = ds_sorted
 
      -- compute scc's
    ds_groups  = stronglyConnComp ds_depped
-   
+
      -- expand the cyclic groups
    ds_sorted  = concatMap expandGroup ds_groups
 
@@ -1789,8 +1788,8 @@ getDeclUses d = (def, uses)
       _			    -> ""
 
 getUses :: Decl -> [String]
-getUses d = 
-  case d of 
+getUses d =
+  case d of
     Typedef _ ty _	    -> getTyUses ty
     Constant _ ty _ _       -> getTyUses ty
     Interface _ _ is ds	    -> map (qName.fst) is ++ concatMap getUses ds
@@ -1844,7 +1843,7 @@ sizeAndAlignModulus mb_pack ty =
 	 LongLong -> (dOUBLE_SIZE, dOUBLE_ALIGN_MODULUS) -- no support for (long double)/quads yet (TODO)
 	 Natural  -> (dOUBLE_SIZE, dOUBLE_ALIGN_MODULUS)
     Integer sz signed
-       | signed -> 
+       | signed ->
          case sz of
            Short     -> (sHORT_SIZE,    sHORT_ALIGN_MODULUS)
            Long      -> (lONG_SIZE,     lONG_ALIGN_MODULUS)
@@ -1875,7 +1874,7 @@ sizeAndAlignModulus mb_pack ty =
     Union _ tty _ _ sw -> (align (uni_off + uni_sz) uni_align, uni_align)
 	    where
 	     sw_no_empties	       = filter (not.isEmptySwitch) sw
-	     
+
 	     isEmptySwitch (SwitchEmpty _) = True
 	     isEmptySwitch _		   = False
 
@@ -1887,7 +1886,7 @@ sizeAndAlignModulus mb_pack ty =
 	      -- compute the offset of union (=> size of tag + pad.)
              uni_off    = align tag_sz uni_align
 
-    UnionNon _ sw    -> (uni_sz, uni_align) 
+    UnionNon _ sw    -> (uni_sz, uni_align)
 	    where
 	     sw_no_empties	   = filter (not.isEmptySwitch) sw
 
@@ -1902,7 +1901,7 @@ sizeAndAlignModulus mb_pack ty =
 	    where
    	     mb_pack_to_use = combinePackLevels mb_pack mb_pack2
 
-	     (sw_sizes, sw_aligns) = 
+	     (sw_sizes, sw_aligns) =
 	     	unzip (map ((sizeAndAlignModulus mb_pack_to_use).fieldType) fields)
 	     uni_sz     = maximum sw_sizes
 	     uni_align  = realModulus mb_pack_to_use (maximum sw_aligns)
@@ -1947,17 +1946,17 @@ computeStructSizeOffsets mb_pack fields =
   structAlign = sTRUCT_ALIGN_MODULUS
 
 place :: Maybe Int
-      -> ( Int       -- tentative offset for field 
+      -> ( Int       -- tentative offset for field
 	 , Int       -- current alignment modulus for struct
-	 )  
+	 )
       -> Field
       -> ( (Int,Int) -- updated state
 	 , Int       -- offset at which to store/access field.
 	 )
 place mb_pack (off,struct_align) f =
  case sizeAndAlignModulus mb_pack (fieldType f) of
-   (sz, al) -> 
-        let 
+   (sz, al) ->
+        let
 	 real_ale  = realModulus mb_pack al
          field_off = align off real_ale
 	in
@@ -1969,7 +1968,7 @@ realModulus (Just v) n = min v n
 
 -- align off al = off' such that (off' `mod` align = 0)
 align :: Int -> Int -> Int
-align off al 
+align off al
  | off `mod` al == 0 = off -- perfect, no padding.
  | otherwise	     = off + (al - off `mod` al)
 
@@ -1979,7 +1978,7 @@ combinePackLevels x       Nothing = x
 combinePackLevels (Just _) (Just y) = Just y -- the inner one 'wins'.
 \end{code}
 
-When deciding whether to generate (or use) a marshaller for a 
+When deciding whether to generate (or use) a marshaller for a
 type, we need to know whether it is (or has components) that are
 finalised. The reason we need to know this detail of the type is
 that finalisation is handled differently depending on whether the

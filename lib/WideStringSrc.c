@@ -13,6 +13,8 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
+#include <wchar.h>
 
 #if defined(_WIN32) && !defined(__CYGWIN32__)
 #include <windows.h>
@@ -48,7 +50,7 @@ static int wcslen(WCHAR* wstr)
   char msg[80];
   WCHAR* wptr;
   int nbytes, i = 0;
-  
+
   wptr = wstr;
 
   if ( wptr == NULL )
@@ -112,7 +114,7 @@ wideToString ( WCHAR* wstr, char** pstr )
     return E_FAIL;
   }
 
-  /* 
+  /*
     Ask COM task allocator for some memory.
    */
   str = CoTaskMemAlloc(len * sizeof(char));
@@ -159,7 +161,7 @@ int primStringToWide( char* str, unsigned int len, WCHAR* wstr , unsigned int wl
 
 /* The proto might not be in scope, so you might
    just get a warning from the C compiler.
-   
+
    Reluctant to define the proto, as experience has
    shown this to be troublesome (there appears to be no
    universal agreement as to what the return type of
@@ -168,7 +170,7 @@ int primStringToWide( char* str, unsigned int len, WCHAR* wstr , unsigned int wl
 extern int wcslen (const WCHAR* wstr);
 extern size_t wcslen (const WCHAR* wstr);
 
-*/  
+*/
 
 int
 lenWideString (WCHAR* wstr )

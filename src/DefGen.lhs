@@ -7,15 +7,15 @@ Generate module definition files (Win32 specific).
 \begin{code}
 module DefGen (defGen) where
 
-import List
+import Data.List
 import AbstractH
 import Utils
 \end{code}
 
 \begin{code}
 defGen :: [(String, Bool, [HTopDecl])] -> [(String,String)]
-defGen code = 
-   map genDef $ 
+defGen code =
+   map genDef $
    groupBy eqMod $
    sortBy cmpMod (foldr getLocSpecs [] (map (\ (_,_,x) -> getDecl x) code))
   where
@@ -36,7 +36,7 @@ defGen code =
    defName ((l,_,_,_):_) = (dropSuffix l) ++ ".def"
 
    defExports ls = unlines ("EXPORTS" : nub (map genExp ls))
-      
+
    genExp (_,Nothing,nm,_)  = nm
    genExp (_,Just x,nm,dec) = nm' ++ ' ':'@':show x
 	where

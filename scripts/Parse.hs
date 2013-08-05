@@ -1,6 +1,6 @@
 import Parser
 import LexM
-import Pretty
+import Text.PrettyPrint
 import PpIDLSyn
 
 import Control.Monad

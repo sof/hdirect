@@ -37,15 +37,15 @@ marshallAbstract i = do
   ds <- mapM exportify decl_list
   return (andDecls ds)
   where
-    decl_list  = 
+    decl_list  =
      (if isFinalised then
         ( ( fin_name, fin_decl ) :)
       else
         id) $
      (if isFinalised then
         id  -- ToDo: generate one (it's genuinely useful in some cases.)
-      else 
-        ( ( f_name, f_tysig `andDecl`  f_def) :)) 
+      else
+        ( ( f_name, f_tysig `andDecl`  f_def) :))
      [ ( m_name, m_tysig `andDecl`  m_def)
      , ( u_name, u_tysig `andDecl`  u_def)
      , ( w_name, w_tysig `andDecl`  w_def)
@@ -60,7 +60,7 @@ marshallAbstract i = do
 
     attrs       = idAttributes i
     isFinalised = attrs `hasAttributeWithName` "finaliser"
-    
+
     free_routine =
       case findAttribute "free" attrs of
         Just (Attribute _ [ParamLit (StringLit s)]) -> mkVarName s
@@ -71,7 +71,7 @@ marshallAbstract i = do
     name       = mkVarName con_name
 
     fin_name  = finaliser
-    fin_decl  
+    fin_decl
       | optHugs   = prim Cdecl (dname, Nothing, orig_fin_nm, Nothing)
                          fin_name (tyFunPtr (funTy (tyPtr t_ty) io_unit))
 		         False [] (False,"void*")
@@ -79,12 +79,12 @@ marshallAbstract i = do
       where
        dname = "" -- dll location.
 
-    (finaliser, orig_fin_nm) = 
+    (finaliser, orig_fin_nm) =
        case (findAttribute "finaliser" attrs) of
           Just (Attribute _ [ParamLit (StringLit s)]) -> ("addrOf_" ++ idName i ++ '_':s, s)
 	  _ -> let s = "no-finaliser" in (s,s)
 
-    ty_args  = 
+    ty_args  =
      case findAttribute "ty_args" attrs of
       Just (Attribute _ [ParamLit (StringLit s)]) -> map tyVar (words s)
       _ -> []
@@ -112,20 +112,20 @@ marshallAbstract i = do
       | otherwise   = (funTy prim_ty (io t_ty))
 
     u_def      = funDef u_name u_pats u_rhs
-    u_pats 
+    u_pats
       | isFinalised = [patVar "finaliseMe__", varPat v]
       | otherwise   = [varPat v]
     u_rhs
       | isFinalised =
-           bind (funApp mkForeignObj [v, hCase (var "finaliseMe__") 
+           bind (funApp mkForeignObj [v, hCase (var "finaliseMe__")
 	   				       [alt (conPat false []) (varName nullFinaliser)
 					       ,alt (conPat true [])  (var finaliser)
 					       ]]) v $
            ret (dataCon (mkConName con_name) [v])
       | otherwise =
            ret (dataCon (mkConName con_name) [v])
-    
-    -- ** Reference marshalling 
+
+    -- ** Reference marshalling
     w_name   = qName (prefix marshallRefPrefix name)
     w_tysig  = typeSig w_name w_ty
     w_ty     = funTy (tyPtr (tyPtr t_ty)) (funTy t_ty io_unit)
@@ -134,11 +134,11 @@ marshallAbstract i = do
     w_rhs
       | isFinalised = funApp w_fptr [vptr , v]
       | otherwise   = funApp w_ptr  [vptr , v]
-    
-    -- ** Reference unmarshalling 
+
+    -- ** Reference unmarshalling
     r_name   = qName (prefix unmarshallRefPrefix name)
     r_tysig  = typeSig r_name r_ty
-    r_ty 
+    r_ty
       | isFinalised = funTy tyBool (funTy (tyPtr t_ty) (io t_ty))
       | otherwise   = funTy (tyPtr t_ty) (io t_ty)
     r_def    = funDef r_name r_pats r_rhs
@@ -148,12 +148,12 @@ marshallAbstract i = do
     r_rhs
       | isFinalised =
            bind (funApp r_ptr [vptr]) v $
-           bind (funApp mkForeignObj [v, hCase (var "finaliseMe__") 
+           bind (funApp mkForeignObj [v, hCase (var "finaliseMe__")
 	   				       [alt (conPat false []) (varName nullFinaliser)
 					       ,alt (conPat true [])  (var finaliser)
 					       ]]) v $
 	   ret (dataCon (mkConName con_name) [v])
-      | otherwise   = 
+      | otherwise   =
            bind (funApp r_ptr  [vptr]) v $
 	   ret (dataCon (mkConName con_name) [v])
 
@@ -174,7 +174,7 @@ marshallAbstract i = do
     l_def    = funDef l_name [varPat v] l_rhs
     l_rhs
       | isFinalised =
-        funApp (mkQVarName ioExts "unsafePerformIO")
+        funApp uPerformIO
            [bind (funApp mkForeignObj [castPtr v, var finaliser]) v $
             ret (dataCon (mkConName con_name) [v])]
       | otherwise =

@@ -8,11 +8,11 @@
 Handling the marshalling of dependent arguments/fields.
 
 \begin{code}
-module MarshallDep 
+module MarshallDep
 	( marshallDependents
 	, unmarshallDependents
 	, freeDependent
-	
+
 	) where
 
 import qualified AbstractH as Haskell (Expr)
@@ -28,9 +28,9 @@ import MarshallCore
 import BasicTypes
 import LibUtils
 
-import List  ( nubBy )
-import Maybe ( mapMaybe, fromMaybe, fromJust, isJust )
-import Monad ( when )
+import Data.List ( nubBy )
+import Data.Maybe ( mapMaybe, fromMaybe, fromJust, isJust )
+import Control.Monad ( when )
 
 \end{code}
 
@@ -47,9 +47,7 @@ marshallDependents :: Bool
                    -> DependInfo
 		   -> (Name -> Type)
 		   -> Mm ()
-marshallDependents inStruct forServer ls lookup_ty = do
-  sequence (map marshallDep ls)
-  return ()
+marshallDependents inStruct forServer ls lookup_ty = sequence_ (map marshallDep ls)
  where
   {-
    Marshall the field members/parameters. A field/param
@@ -92,7 +90,7 @@ marshallDependent inStruct forServer i lookup_ty deps' = do
  addCode (hLets dep_binds)
  (if inStruct && isArrayTy (removeNames ty) then
      return ()
-  else 
+  else
      addCode (bind (funApply marshall_list [real_nm]) real_nm))
  when (not forServer) (dep_ptrs  >> return ())
  return ()
@@ -103,27 +101,27 @@ marshallDependent inStruct forServer i lookup_ty deps' = do
    				True
                                 ty lookup_ty
 				   (varName m_list)
-   				   trans_start_posns 
-			   	   trans_end_posns 
+   				   trans_start_posns
+			   	   trans_end_posns
 				   alloc_sizes
-   (trans_start_posns, trans_end_posns, alloc_sizes) 
+   (trans_start_posns, trans_end_posns, alloc_sizes)
                  = computeArrayConstraints False{-marshalling-} deps
 
    -- size information may be in part be specified as part of
    -- the (array) type, i.e.,  [size_is(len,)] char arr[][20];
-   -- 
+   --
    -- we push this info into the dependency list here. It really
    -- should be done as part of desugaring. (ToDo.)
-   deps         = 
+   deps         =
     case ty of
-      Array _ es -> 
+      Array _ es ->
          case es of
 	  []      -> deps'
 	  [e]     ->
             case break (isSizeIs) deps' of
 	     (_,[]) -> ((Dep SizeIs [exprToDep e]):deps')
 	     (as,(Dep SizeIs ds):bs) -> as++(Dep SizeIs (combine ds (exprToDep e))):bs
-             _      -> error "MarshallDep.marshallDependent: expected a SizeIs attribute"		
+             _      -> error "MarshallDep.marshallDependent: expected a SizeIs attribute"
           [e1,e2] -> [ Dep FirstIs [exprToDep e1]
 	  	     , Dep LastIs  [exprToDep e2]
 		     ] ++ deps'
@@ -133,18 +131,18 @@ marshallDependent inStruct forServer i lookup_ty deps' = do
 	   combine (DepNone:ds) d = d:ds
 	   combine d       _ = d
 
-	   exprToDep e = 
+	   exprToDep e =
 	     case (findFreeVars e) of
 	       []    -> DepVal Nothing e
 	       (v:_) -> DepVal (Just v) e
 
       _ -> deps'
 
-   size_deps = filter (\d -> sizeOrLength d && 
+   size_deps = filter (\d -> sizeOrLength d &&
 			     hasNonConstantExprs d) deps
 
    dep_binds   = nubBy (\ a b -> isVarsEq (fst a) (fst b)) $
-		 concat       $ 
+		 concat       $
 		 map toBinder size_deps
    dep_ptrs    = sequence       (
                  map allocPtr   $
@@ -165,32 +163,32 @@ marshallDependent inStruct forServer i lookup_ty deps' = do
    isDeref (DepVal (Just _) (Unary Deref _)) = True
    isDeref _ = False
 
-   -- convert a dependency list       
+   -- convert a dependency list
    toBinder (Dep _ ls) = mapMaybe toBinds ls
      where
       toBinds (DepVal (Just v) e@(Var _)) =
         Just ( var v, subst v len (coreToHaskellExpr e))
 	where
 	 len = mkLength (lookup_ty v)
-         
-      toBinds (DepVal (Just v) e) = 
+
+      toBinds (DepVal (Just v) e) =
          Just (var v, subst v' len (coreToHaskellExpr (solve v (Var v') e)))
          where
 	  v'  = v ++ "'"
           len = mkLength (lookup_ty v)
-         
+
       toBinds _ = Nothing
 
-   mkLength to_ty = 
+   mkLength to_ty =
       -- if the external function expects a [unique] pointer to the
       -- value holding the length, wrap a Just around the length of the list.
      case to_ty of
         Pointer Unique _ _ -> just length_expr
 	_		   -> length_expr
     where
-      length_expr = 
+      length_expr =
 	  coerceTy intTy (removePtrs to_ty) $
-          case removeNames ty of 
+          case removeNames ty of
 	      -- if the depender is a wide string, use appropriate
 	      -- length function.
 	      -- ToDo: add a "Type -> QualName" function which
@@ -211,8 +209,7 @@ unmarshallDependents :: Bool  -- working inside a struct/union?
 		     -> Mm ()
 unmarshallDependents inStruct is_out ls lookup_ty = do
  marshall_dependees
- sequence (map unmarshallDep ls)
- return ()
+ sequence_ (map unmarshallDep ls)
   where
    deps = concat (map snd ls)
 
@@ -227,11 +224,11 @@ unmarshallDependents inStruct is_out ls lookup_ty = do
 	 _               -> unmarshallDependent inStruct is_out i lookup_ty deps1
 			       -- split off into separate function for clarity.
 
-   marshall_dependees = sequence (map toBinds code)
+   marshall_dependees = sequence_ (map toBinds code)
 
    code = nubBy theSame  $
 	  concatMap (\ (Dep _ ds) -> filter nonConstantDep ds) $
-	  filter (\d -> sizeOrLength d && 
+	  filter (\d -> sizeOrLength d &&
 	  		hasNonConstantExprs d &&
 			not (isResult d)) deps
 
@@ -246,7 +243,7 @@ unmarshallDependents inStruct is_out ls lookup_ty = do
    -- the actions we're creating here are only responsible for fishing
    -- out values from pointers, so we only need to do this once.
    theSame (DepVal (Just a) _) (DepVal (Just b) _) = a == b
-   theSame _ _ = False 
+   theSame _ _ = False
 
    nonConstantDep (DepVal (Just _) _) = True
    nonConstantDep _		      = False
@@ -256,26 +253,26 @@ unmarshallDependents inStruct is_out ls lookup_ty = do
 	     ty   = lookup_ty v'
          in
          addCode (bind (funApply (unmarshallType stubMarshallInfo ty) [var v']) (var v'))
-   toBinds (DepVal (Just v) e) = 
-         let 
+   toBinds (DepVal (Just v) e) =
+         let
              v'    = v ++ "'"
 	     ty    = lookup_ty v
 	 {-
-	   For a case like the following: 
+	   For a case like the following:
 		    void foo([out]int *len,[out,size_is(*len+2)]char* ps[]);
 
 	   we want to generate unmarshalling code for ps that gets at the
            value of len:
- 
+
             len <- ((u_ref r_Int32) len)
             let len' = (len + 2)
             ps <- u_list s_Addr 0 (fromIntegral len') ....
- 
+
 	  the code below generates the first two lines, binding the value
-	  read out of 
-	  
-	 -}    
-	
+	  read out of
+
+	 -}
+
          in do
          addCode (bind (funApply (unmarshallType stubMarshallInfo ty) [var v]) (var v))
 	 addToEnv v v'
@@ -290,33 +287,33 @@ unmarshallDependents inStruct is_out ls lookup_ty = do
 -}
 unmarshallDependent :: Bool
 		    -> Bool
-		    -> Id 
-		    -> (Name -> Type) 
-		    -> [Dependent] 
+		    -> Id
+		    -> (Name -> Type)
+		    -> [Dependent]
 		    -> Mm ()
 unmarshallDependent _ _ _ _ [Dep SwitchIs _] = return ()
 unmarshallDependent inStruct is_out i lookup_ty deps' = do
  unmarsh <- unmarshallList inStruct
  			   True{-at top-level-}
-                           ty 
+                           ty
  			   lookup_ty
                            (trans_start_posns)
 			   (trans_end_posns)
 			   (alloc_sizes)
- let 
-      -- in the case of [out] parameters, de-reference the 
+ let
+      -- in the case of [out] parameters, de-reference the
       -- the pointer to get at the goods. This is only done
       -- when the [out] parameter was (at least) a pointer to
-      -- a pointer to something. If not, then the [out] pointer 
+      -- a pointer to something. If not, then the [out] pointer
       -- points to the piece of a memory (we've already allocated)
       -- and are now ready to unmarshal.
-     unmarsh' 
+     unmarsh'
        | is_out && allocated_space_for = funApp r_ref [unmarsh]
        | otherwise = unmarsh
 
      unmarsh_and_free
        | is_out   =
-	funApp doThenFree 
+	funApp doThenFree
 	       [ fromMaybe (varName trivialFree) (freeDependentE i lookup_ty deps')
 	       , unmarsh'
 	       ]
@@ -326,7 +323,7 @@ unmarshallDependent inStruct is_out i lookup_ty deps' = do
   where
    nm	         = idName i
    tentative_ty  = lookup_ty nm
-   ty        
+   ty
      | should_peel = removePtr tentative_ty
      | otherwise   = tentative_ty
 
@@ -337,7 +334,7 @@ unmarshallDependent inStruct is_out i lookup_ty deps' = do
      If we did, we need to deref this pointer before unmarshalling -- see above.
    -}
    allocated_space_for =
-        is_out && 
+        is_out &&
 	let
 	 (_, _, cs1) = computeArrayConstraints False{-marshalling-} deps'
 	in
@@ -345,7 +342,7 @@ unmarshallDependent inStruct is_out i lookup_ty deps' = do
 	  (DepNone:_) -> True
 	  _           -> False
 
-   should_peel 
+   should_peel
     | not is_out = False
     | otherwise  =
         case cs of
@@ -355,12 +352,12 @@ unmarshallDependent inStruct is_out i lookup_ty deps' = do
 {-
    -- size information may be in part be specified as part of
    -- the (array) type, i.e.,  [size_is(len,)] char arr[][20];
-   -- 
+   --
    -- we push this info into the dependency list here. It really
    -- should be done as part of desugaring. (ToDo.)
-   deps         = 
+   deps         =
     case ty of
-      Array _ es -> 
+      Array _ es ->
          case es of
 	  []      -> deps'
 	  [e]     ->
@@ -375,7 +372,7 @@ unmarshallDependent inStruct is_out i lookup_ty deps' = do
 	   combine (DepNone:ds) d = d:ds
 	   combine d       _ = d
 
-	   exprToDep e = 
+	   exprToDep e =
 	     case (findFreeVars e) of
 	       []    -> DepVal Nothing e
 	       (v:_) -> DepVal (Just v) e
@@ -397,7 +394,7 @@ marshallList :: Bool
              -> Type
 	     -> (Name -> Type)
 	     -> Haskell.Expr
-	     -> [DepVal]{-start index of transmits, one for each dim.-} 
+	     -> [DepVal]{-start index of transmits, one for each dim.-}
 	     -> [DepVal]{-end index of transmits-}
 	     -> [DepVal]{-size to allocate (for each dimension)-}
 	     -> Haskell.Expr
@@ -413,10 +410,10 @@ marshallList inStruct topLev ty lookup_ty marshaller
   where
    r_ty = removeNames ty
    ref_marshaller = funApp w_list [varName alloc_list]
-   
-   alloc_list 
-      | isStringTy ty'  || 
-        isPointerTy ty' || 
+
+   alloc_list
+      | isStringTy ty'  ||
+        isPointerTy ty' ||
 	isArrayTy ty'	    = true
       | otherwise	    = false
 
@@ -428,7 +425,7 @@ unmarshallList :: Bool
 	       -> Bool
                -> Type
 	       -> (Name -> Type)
-	       -> [DepVal]{-start index of transmits, one for each dim.-} 
+	       -> [DepVal]{-start index of transmits, one for each dim.-}
 	       -> [DepVal]{-end index of transmits-}
 	       -> [DepVal]{-size to allocate (for each dimension)-}
 	       -> Mm Haskell.Expr
@@ -453,18 +450,18 @@ unmarshallList inStruct topLev ty l_ty
 unmarshallList _ _ _ _ _ _ _ = error "MarshallDep.unmarshallList: the impossible happened"
 
 mkLengthExpr :: DepVal -> (Name -> Type) -> Mm Haskell.Expr
-mkLengthExpr sz lookup_ty = 
+mkLengthExpr sz lookup_ty =
  case sz of
    DepNone           -> return nothing
    DepVal Nothing e  -> return (coerceTy intTy word32Ty (coreToHaskellExpr e))
    DepVal (Just v) e -> do
 	 mb_nm <- lookupName v
 	 mNm   <- getMethodName
-	 let 
-	   nm  = 
+	 let
+	   nm  =
 	     case mb_nm of
-	       Nothing 
-	         | v == "result" && isJust mNm -> 
+	       Nothing
+	         | v == "result" && isJust mNm ->
 		 	outPrefix ++ fromJust mNm
 	         | otherwise ->
 		        error ("MarshallDep.mkLengthExpr: unbound variable ('" ++
@@ -476,7 +473,7 @@ mkLengthExpr sz lookup_ty =
 
 
 	   coerce = coerceTy (removePtrs ty) word32Ty
-				      
+
            {-
 	    In the case the length is given via a [unique] pointer,
 	    we will have at this stage unmarshalled it to a Maybe value.
@@ -486,7 +483,7 @@ mkLengthExpr sz lookup_ty =
 	   Pointer Unique _ _ -> return (
 				funApp fromMaybeName
 				       [ var "0"
-				       , funApp mapName [lam [patVar "x"] 
+				       , funApp mapName [lam [patVar "x"]
 				       			     (coerce (var "x")), h_e]
 				       ])
 	   Pointer Ptr _ _  -> error "mkLengthExpr: Ptr - no can do."
@@ -510,7 +507,7 @@ the 'dependent arg' marshaller previously constructed.
 
 \begin{code}
 freeDependent :: Id -> (Name -> Type) -> [Dependent] -> Mm ()
-freeDependent i lookup_ty deps = 
+freeDependent i lookup_ty deps =
    case freeDependentE i lookup_ty deps of
      Nothing -> return ()
      Just f  -> addCode (bind_ (funApply f [real_nm]))
@@ -529,7 +526,7 @@ freeDependentE i lookup_ty deps = free_list
 
 freeList :: Type
 	 -> (Name -> Type)
-	 -> [DepVal]{-start index of transmits, one for each dim.-} 
+	 -> [DepVal]{-start index of transmits, one for each dim.-}
 	 -> [DepVal]{-end index of transmits-}
 	 -> [DepVal]{-size to allocate (for each dimension)-}
 	 -> Maybe Haskell.Expr
@@ -559,7 +556,7 @@ freeList _ _ _ _ _ = error "MarshallDep.freeList: the impossible happened"
 freeElts :: Type -> Maybe Haskell.Expr
 freeElts ty =
   case ty of
-   Sequence{}  -> Just $ varName free 
+   Sequence{}  -> Just $ varName free
       --Just $ funApp f_list [ szType t, freeElts' t ] -- wrong.
    Fixed{}          -> error "not implemented yet."
    SafeArray t      -> Just $ funApp f_list [ szType t, freeElts' t]
@@ -576,7 +573,7 @@ freeElts ty =
    Pointer pt _ pty
       | pt == Ref    -> Just $ funApp f_ref    [ freeElts' pty ]
       | pt == Unique -> Just $ funApp f_unique [ freeElts' pty ]
-      | otherwise    -> Just $ varName f_ptr 
+      | otherwise    -> Just $ varName f_ptr
    _	| needsFreeing ty -> Just (mkEltFreer ty)
         | otherwise	  -> Nothing
   where

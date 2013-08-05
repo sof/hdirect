@@ -1,4 +1,4 @@
-% 
+%
 % (c) The Foo Project, Universities of Glasgow & Utrecht, 1997-8
 %
 % @(#) $Docid: Jun. 9th 2003  12:58  Sigbjorn Finne $
@@ -28,17 +28,19 @@ import PpAbstractH ( ppHTopDecls, showAbstractH )
 import PreProc
 import Desugar
 import Rename
-import IO  ( hPutStr, hPutStrLn, stderr, stdout, hPutChar,
-	     openFile, IOMode(..), hClose, Handle, hFlush
-	   )
-import Monad  ( when )
-import System (getProgName, exitWith, ExitCode(..) )
+import System.IO ( hPutStr, hPutStrLn, stderr, stdout, hPutChar,
+	           openFile, IOMode(..), hClose, Handle, hFlush
+		 )
+import System.IO.Error ( catchIOError )
+import Control.Monad  ( when )
+import System.Environment (getProgName )
+import System.Exit ( exitWith, ExitCode(..) )
 import CodeGen
 import Utils ( dropSuffix, basename, notNull )
-import Time
-import List  ( partition )
+import System.Time
+import Data.List  ( partition )
 import Version
-import Locale
+import System.Locale
 import HugsCodeGen
 import DefGen
 import CStubGen
@@ -46,17 +48,17 @@ import JavaProxy
 import Env ( newEnv, addListToEnv_C )
 
 {- BEGIN_SUPPORT_TYPELIBS
-import 
+import
        TLBWriter
-import 
+import
        ImportLib
-import 
+import
        Com   ( coRun )
    END_SUPPORT_TYPELIBS -}
 {- BEGIN_USE_REGISTRY
-import 
+import
        Win32Registry  ( hKEY_LOCAL_MACHINE, regQueryValue, regOpenKeyEx, kEY_READ )
-import 
+import
        StdDIS	      ( MbString )
    END_USE_REGISTRY -}
 \end{code}
@@ -68,10 +70,10 @@ main
  | optHelp     = do { pgm <- getProgName ; putStrLn (usage_msg pgm) }
  | otherwise   = do
 {- BEGIN_SUPPORT_TYPELIBS
-   coRun $ do   
+   coRun $ do
    END_SUPPORT_TYPELIBS -}
     file <- getInpFile
-    case file of 
+    case file of
       Nothing     -> do { pgm <- getProgName ; putStrLn (usage_msg pgm) }
       Just fnames -> do
 	case optOFiles of
@@ -88,10 +90,9 @@ main
 	                | otherwise          = \ n -> (Right (oFileFromInput n), oModNm n)
                incls = optincludedirs ++ ["."]
 
-	     if not optTlb 
-	      then do
-	       sequence (map (\ f -> processFile incls f (oFileFun f)) fnames)
-	       return ()
+	     if not optTlb
+	      then
+	       sequence_ (map (\ f -> processFile incls f (oFileFun f)) fnames)
 	      else do
 {- BEGIN_SUPPORT_TYPELIBS
                 ds <- mapM (importLib) fnames
@@ -118,12 +119,12 @@ main
 	 | optServer -> (dropSuffix nm) ++ "Proxy.hs"
          | otherwise -> (dropSuffix nm) ++ ".hs"
 
-   getInpFile = 
+   getInpFile =
          case optFiles of
             [] -> return Nothing
             _  -> return (Just (reverse optFiles))
-              
-    
+
+
 hdirectHelp :: IO ()
 hdirectHelp = do
   pgm <- getProgName
@@ -132,30 +133,30 @@ hdirectHelp = do
 \end{code}
 
 \begin{code}
-processFile :: [String] 
+processFile :: [String]
 	    -> String
 	    -> (Either String String, Maybe String)
 	    -> IO ()
 processFile path fname ofname = do
   fname'     <- preProcessFile fname
-  ls         <- 
+  ls         <-
      case fname' of
         "-" -> getContents
 	_   -> readFile fname'
   processSource path fname (Left ls) ofname
 
-processAsf :: [String] 
+processAsf :: [String]
 	   -> String
 	   -> IO [(String,Bool,[Attribute])]
 processAsf path fname = do
   when optVerbose (hFlush stdout >> hPutStrLn stderr ("Processing ASF: " ++ fname))
-  ls         <- 
+  ls         <-
      case fname of
         "-" -> getContents
 	_   -> readFile fname
   Right x  <- runLexM path fname ('=':ls) Parser.parseIDL
   return x
-  
+
 showPassMsg :: String -> IO ()
 showPassMsg msg = do
   hFlush stdout
@@ -169,19 +170,19 @@ processSource :: [String]
 	      -> IO ()
 processSource path fname ls ofname = do
   when optShowPasses (showPassMsg "Reader")
-  defs <- 
+  defs <-
      case ls of
-       Left str -> 
-          catch 
+       Left str ->
+          catchIOError
              (runLexM path fname str parseIDL)
 	     (\ err -> removeTmp >> ioError err)
        Right ds -> return ds
   when (optShowPasses && notNull optAsfs)
        (showPassMsg "Asf reader")
   asfs       <- mapM (processAsf path) optAsfs
-  let 
+  let
        {-
-        Definitions are sorted either on the command of 
+        Definitions are sorted either on the command of
 	the user, or if we're operating in 'winnow'ing mode.
        -}
       s_defs
@@ -194,7 +195,7 @@ processSource path fname ls ofname = do
 
       combineAsf (f1, old) (f2, new) = (f1 && f2, old ++ new)
 
-      asf_env   = addListToEnv_C combineAsf newEnv 
+      asf_env   = addListToEnv_C combineAsf newEnv
       				 (map (\ (x,y,z) -> (x, (y,z))) (concat asfs))
 
       os = showIDL (ppIDL fname w_defs)
@@ -206,13 +207,13 @@ processSource path fname ls ofname = do
 
   dumpPass dumpDesugar "Desugared IDL" cs
 
-  let (renamed_decls, iso_env, iface_env) 
+  let (renamed_decls, iso_env, iface_env)
          = renameDecls tenv tg_env senv ifenv core_decls
       rs = showCore (ppCore renamed_decls)
 
   dumpPass dumpRenamer "Renamed Core IDL" rs
-  
-  when (optOutputTlb || notNull optOutputTlbTo) 
+
+  when (optOutputTlb || notNull optOutputTlbTo)
 {- BEGIN_SUPPORT_TYPELIBS
        (coRun $ writeTLB optOutputTlbTo renamed_decls)
    END_SUPPORT_TYPELIBS -}
@@ -230,14 +231,14 @@ processSource path fname ls ofname = do
   let def_files = defGen code
   when (not optNoOutput && optGenDefs)
        (sequence_ (map (uncurry writeOutStuff) def_files))
-  when (not optNoOutput) 
+  when (not optNoOutput)
        (writeCode True code)
   removeTmp
 
 {-  Invoke the right parser. -}
 parseIDL :: LexM [Defn]
 parseIDL
- | optCompilingOmgIDL = OmgParser.parseIDL 
+ | optCompilingOmgIDL = OmgParser.parseIDL
  | otherwise	      = Parser.parseIDL >>= \ (Left x) -> return x
 
 \end{code}
@@ -261,7 +262,7 @@ writeCode is_haskell ((nm, flg, md):rs) = do
   writeOutCode
   when (is_haskell && flg) $ do
         hFlush stdout
-        hPutStrLn stderr 
+        hPutStrLn stderr
 		  ("Notice: Need to generate C stubs as well for module " ++ show (dropSuffix nm) ++ ",")
 	hPutStrLn stderr
 	          ("        since it contains methods that passes structs/unions")
@@ -280,15 +281,15 @@ writeCode is_haskell ((nm, flg, md):rs) = do
 
   incs             = map (\ (HInclude s) -> s) incs'
   (incs',non_incs) = partition filterIncludes md
-  
-  filterIncludes HInclude{}     = is_haskell -- C'ish backends deal with 
+
+  filterIncludes HInclude{}     = is_haskell -- C'ish backends deal with
   					     -- the includes directly.
   filterIncludes _              = False
 
-  out_nm = 
+  out_nm =
    case nm of
      "-" -> nm
-     _ 
+     _
       | generateGreenCard -> dropSuffix nm ++ ".gc"
       | not is_haskell    -> dropSuffix nm ++ ".c"
       | otherwise	  -> nm
@@ -311,7 +312,7 @@ writeOut incs is_haskell no_hdrs fname_prim stuff = do
       hClose hp
   when optVerbose (hFlush stdout >> hPutChar stderr '\n')
  where
-   fname = 
+   fname =
     case fname_prim of
       "-" -> fname_prim
       _   ->
@@ -319,7 +320,7 @@ writeOut incs is_haskell no_hdrs fname_prim stuff = do
          (x:_) -> x ++ '/':basename fname_prim
          _     -> fname_prim
 
-   dirs 
+   dirs
      | no_hdrs    = incs
      | is_haskell = optIncludeHeaders ++ incs
      | otherwise  = optIncludeCHeaders ++ optIncludeHeaders ++ incs
@@ -349,12 +350,11 @@ writeOut incs is_haskell no_hdrs fname_prim stuff = do
 
    includes_at_top hp
      | null dirs || optGreenCard = return ()
-     | otherwise = do
+     | otherwise =
             -- one {-# OPTIONS ... #-} per include file.
-           sequence (map (gen_options hp) dirs)
-	   return ()
+           sequence_ (map (gen_options hp) dirs)
 
-   gen_options hp hfile = 
+   gen_options hp hfile =
        case hfile of
           []     -> return ()
 	  _      -> hPutStrLn hp (gen_include (showFn hfile))
@@ -369,7 +369,7 @@ writeOut incs is_haskell no_hdrs fname_prim stuff = do
 
 hPutBanner :: ([String] -> String) -> Handle -> IO ()
 hPutBanner comment hp = do
-  ls <- mkBanner comment 
+  ls <- mkBanner comment
   hPutStrLn hp ls
 
 mkBanner :: ([String] -> String) -> IO String
@@ -395,21 +395,19 @@ writeOutStuff fname stuff = do
 
 writeHeader :: [(String, Decl)] -> IO ()
 writeHeader ls = do
-   sequence (map (\ (fname, d) -> 
+   sequence_ (map (\ (fname, d) ->
    		    writeOut [] False True
 		             fname
 			     (showHeader fname (ppHeaderDecl (getInterfaceIds d) d)))
-		 ls)
-   return ()
+	 	  ls)
 
 writeJava :: [Decl] -> IO ()
 writeJava ds = do
-   sequence (map (\ (fname, d) -> do
+   sequence_ (map (\ (fname, d) -> do
                         b <- mkBanner block_comment
    			writeOutStuff (dropSuffix fname ++ ".java")
    						(b ++ javaProxyGen d))
 		 ls)
-   return ()
  where
   ls = prepareDecls ds
 

@@ -15,7 +15,7 @@ import Utils ( traceIf )
 import Opts  ( optVerbose, optLongLongIsInteger,
 	       optGenHeader, optOneModulePerInterface
 	     )
-import List  ( nub, intersperse )
+import Data.List  ( nub, intersperse )
 import Utils ( notNull, dropSuffix )
 \end{code}
 
@@ -43,17 +43,17 @@ addToStubEnv nm ty cont (env,dlls) = cont (((nm,arity):env),dlls)
 
    size_args = sum (map sizeofArg args)
 
-   arity 
+   arity
     | isIOTy res = size_args + 2
     | otherwise  = size_args
-   
+
 addToDllEnv :: String -> HugsStubCode -> HugsStubCode
 addToDllEnv nm cont (env,dlls) = cont (env,nm:dlls)
 
 hCode :: String -> [HTopDecl] -> HugsStubCode
 hCode c_nm xs = whizz xs
- where 
-  whizz [] = 
+ where
+  whizz [] =
     getDllEnv  $ \ dlls ->
     let dlls_real = nub (filter notNull dlls) in
     traceIf (optVerbose && notNull dlls_real)
@@ -64,7 +64,7 @@ hCode c_nm xs = whizz xs
     getStubEnv $ \ env ->
     genTrailer env
   whizz (HLit _ : ls)     = whizz ls
-  whizz (CLit s : ls) 
+  whizz (CLit s : ls)
     | not optGenHeader  = text s $$ whizz ls
     | otherwise         = whizz ls
   whizz (HInclude s : ls) = text "#include" <+> text (escapeString s) $$
@@ -74,10 +74,10 @@ hCode c_nm xs = whizz xs
   escapeString s@('"':_) = s -- "
   escapeString s@('<':_) = s
   escapeString s         = show s
- 
+
 hMod :: String -> HModule -> HugsStubCode -> HugsStubCode
 hMod c_nm (HModule _ _ _ _ d) cont
-  | optGenHeader && not optOneModulePerInterface = 
+  | optGenHeader && not optOneModulePerInterface =
       text  "#include" <+> text (show (dropSuffix c_nm ++ ".h")) $$ code
   | otherwise = code
  where
@@ -89,7 +89,7 @@ hDecl (Primitive _ cc lspec nm ty _ c_args c_res) cont =
  addToDllEnv dll_name $
  addToStubEnv nm ty   $
  tdefFun lspec cc c_args c_res $$
- primHeader nm $$ 
+ primHeader nm $$
  lbrace $$
    argAndResDecls ty c_args c_res $$ argAssign ty c_args $$
    performCall False lspec c_args ty $$
@@ -100,16 +100,16 @@ hDecl (Primitive _ cc lspec nm ty _ c_args c_res) cont =
   (dll_name, _, _, _) = lspec
 
   tdefFun (_,Nothing,_,_) _ _ _ = empty
-  tdefFun (_,Just _,fnm,_) cconv cargs cres = 
+  tdefFun (_,Just _,fnm,_) cconv cargs cres =
     text "extern" <+> text (snd cres) <+> ppCallConv True cconv <+> text fnm <+>
     parens (hsep (intersperse comma (map (text.snd) cargs))) <> semi
 
 hDecl (PrimCast cc nm ty _ c_args c_res) cont =
  addToStubEnv nm ty              $
  tdefFunTy nm cc c_args c_res $$
- primHeader nm $$ 
+ primHeader nm $$
  lbrace $$
-   argAndResDecls ty c_args c_res $$ 
+   argAndResDecls ty c_args c_res $$
    text (nm++"__funptr __funptr__;") $$
    argAssign ty c_args $$
    text ("__funptr__ = ("++nm++"__funptr)arg0;") $$
@@ -131,7 +131,7 @@ primHeader :: Name -> HugsStubCode
 primHeader nm = text "primFun" <> parens (text nm)
 
 argAndResDecls :: Type -> [(Bool,String)] -> (Bool,String) -> HugsStubCode
-argAndResDecls ty c_args c_res = ppDecls (zipWith declArg [0..] c_args) $$ declRes 
+argAndResDecls ty c_args c_res = ppDecls (zipWith declArg [0..] c_args) $$ declRes
  where
   (_, res) = splitFunTys ty
 
@@ -144,20 +144,20 @@ argAndResDecls ty c_args c_res = ppDecls (zipWith declArg [0..] c_args) $$ declR
     | otherwise = text t <+> ppArg False n
 
   noResult =
-    case res of 
+    case res of
      (TyApply (TyCon _) [TyCon tc]) -> qName tc == "()"
      _ -> False
 
 ppArg :: Bool -> Int -> HugsStubCode
-ppArg isStructTy n 
+ppArg isStructTy n
  | isStructTy = text ("*arg"++show n)
  | otherwise  = text ("arg"++show n)
 
 ppCTy :: Type -> HugsStubCode
-ppCTy ty = 
+ppCTy ty =
  case ty of
    TyVar _ tv    -> text (degrokNm (qName tv))
-   TyCon tc      
+   TyCon tc
      | qName tc == "()" -> empty
      | otherwise	-> text (degrokNm (qName tc))
    TyApply (TyCon tc) [_] | qName tc == "StablePtr"  -> text "StablePtr"
@@ -186,28 +186,28 @@ argAssign ty c_args = ppDecls (zipWith3 declArg [0..] args c_args)
   where
   (args, _) = splitFunTys ty
 
-  declArg n t@(TyCon tc) (_, c_ty) 
+  declArg n t@(TyCon tc) (_, c_ty)
     | optLongLongIsInteger && qName tc == "Integer"
     = ppArg False n <+> equals    <+>
 	parens (text c_ty) <>
 	parens (text"hugs->get" <> ppCTy t <> text "()") <> semi $$
 	ppArg False n <+> text ">>= 32" <> semi $$
-	ppArg False n <+> text "+=" <+> parens (text c_ty) <> 
+	ppArg False n <+> text "+=" <+> parens (text c_ty) <>
 	      parens (text"hugs->get" <> ppCTy t <> text "()")
-  declArg n t (is_struct, c_ty) 
+  declArg n t (is_struct, c_ty)
      = ppArg False n <+> equals    <+>
 	parens ppr_c_ty <>
 	parens (text"hugs->get" <> ppCTy t <> text "()")
    where
     ppr_c_ty
       | is_struct = text c_ty <> char '*'
-      | otherwise = text c_ty 
+      | otherwise = text c_ty
 
 \end{code}
 
 \begin{code}
 performCall :: Bool -> LocSpec -> [(Bool,String)] -> Type -> HugsStubCode
-performCall is_dyn (_,_, fun, _) c_args ty = 
+performCall is_dyn (_,_, fun, _) c_args ty =
    ppAssign res <> text fun <> pp_fun_args <> semi
  where
   (args, res) = splitFunTys ty
@@ -232,30 +232,30 @@ performCall is_dyn (_,_, fun, _) c_args ty =
 
 \begin{code}
 pushResult :: (Bool,String) -> Type -> HugsStubCode
-pushResult (isStructTy, c_ty) ty = 
+pushResult (isStructTy, c_ty) ty =
   assignRes $$
-  if isPure then 
+  if isPure then
       empty
   else
       text "hugs_returnIO" <> parens no_of_args <> semi
- where 
+ where
   (_, res) = splitFunTys ty
 
-  isPure = 
-    case res of 
+  isPure =
+    case res of
       TyApply _ _ -> False
       _           -> True
 
   noResult =
-    case res of 
+    case res of
      (TyApply (TyCon _) [TyCon tc]) -> qName tc == "()"
      _ -> False
 
   isIntegerRes =
-    case res of 
+    case res of
      (TyApply (TyCon _) [TyCon tc]) -> qName tc == "Integer"
      _ -> False
-     
+
   assignRes
     | noResult  = empty
     | isIntegerRes = text "hugs->putInt" <> parens ( text "(unsigned int)res" ) <> semi $$
@@ -267,7 +267,7 @@ pushResult (isStructTy, c_ty) ty =
     | isStructTy = text "copyBytes" <> parens (
   	                text "sizeof" <> parens (text c_ty) <>
                         text ", &res")
-    | otherwise  = parens (text c_ty) <> text "res" 
+    | otherwise  = parens (text c_ty) <> text "res"
 
   no_of_args
     | noResult     = text "0"
@@ -280,13 +280,13 @@ pushResult (isStructTy, c_ty) ty =
 tdefFunTy :: Name -> CallConv -> [(Bool,String)] -> (Bool,String) -> HugsStubCode
 tdefFunTy nm cc c_args c_res =
  text "typedef" <+> ppResultTy <+>
-   parens ( ppCallConv True cc <+> char '*' <+> 
+   parens ( ppCallConv True cc <+> char '*' <+>
 	    text (nm++"__funptr")) <+>
    ppTuple ppArgs <> semi
  where
   ppResultTy  = text (snd c_res)
   ppArgs = zipWith pp_arg [1..] (tail c_args)
-  
+
   pp_arg n (_, t) = text t <+> ppArg False n
 
 \end{code}
@@ -294,7 +294,7 @@ tdefFunTy nm cc c_args c_res =
 \begin{code}
 genTrailer :: [(String,Int)] -> HugsStubCode
 genTrailer [] = empty
-genTrailer ls = 
+genTrailer ls =
   genPrimTable ls $$
   text "static struct hugs_primInfo prims = { 0, primTable, 0 };" $$
   text "#ifdef __cplusplus" $$
@@ -308,15 +308,15 @@ genTrailer ls =
   text "#ifdef __cplusplus" $$
   text "}"  $$
   text "#endif"
-  
+
 genPrimTable :: [(String,Int)] -> HugsStubCode
-genPrimTable ls = 
+genPrimTable ls =
   text "static struct hugs_primitive primTable[] = {" $$
   nest 2 (vsep (map genPrim ls)) $$
   nest 2 (text "{0,0,0}") $$
   text "};"
  where
-  genPrim (nm, arity) = 
+  genPrim (nm, arity) =
      lbrace <> text (show nm) <> comma <> text (show arity) <> comma <>
      text nm <> text "},"
 

@@ -4,11 +4,10 @@ Copyright (c) 1998,  Daan Leijen, leijen@@fwi.uva.nl
 This module is part of HaskellDirect (H/Direct).
 
 \begin{code}
-{-# OPTIONS -#include "PointerSrc.h" #-}
-module Pointer  
-	( 
+module Pointer
+	(
 	  Ptr
-	
+
 	, allocMemory
 	, stackFrame
 
@@ -22,12 +21,12 @@ module Pointer
 	, freeBSTR
 	, freeWith
 	, freeWithC
-	
+
 	, primNoFree
-	
+
 	, finalNoFree
 	, finalFreeMemory
-	
+
 	, makeFO
 
        ) where
@@ -35,8 +34,8 @@ module Pointer
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import PointerPrim
-import Word     ( Word32 )
-import Monad
+import Data.Word     ( Word32 )
+import System.IO.Error ( catchIOError )
 \end{code}
 
 The Pointer module provides helper functions over Ptrs +
@@ -47,7 +46,7 @@ allocator.
 type Finalizer a  = Ptr a -> IO ()
 
 makeFO :: Ptr a -> FunPtr (Ptr a -> IO ()) -> IO (ForeignPtr b)
-{- BEGIN_GHC_ONLY 
+{- BEGIN_GHC_ONLY
 #if __GLASGOW_HASKELL__ > 601
 makeFO obj finaliser = newForeignPtr (mkFinal finaliser obj) obj >>= return.castForeignPtr
 #else
@@ -60,6 +59,7 @@ makeFO obj finaliser = newForeignPtr (mkFinal finaliser obj) obj >>= return.cast
 --makeFO obj finaliser = newForeignPtr obj (mkFinal finaliser obj) >>= return.castForeignPtr
 {- END_NOT_FOR_GHC -}
 
+mkFinal :: a -> b -> a
 {- BEGIN_GHC_ONLY
 #if __GLASGOW_HASKELL__ < 505
 mkFinal final obj = ap0 final obj
@@ -84,11 +84,11 @@ writeSeqAtDec size ws ptr = go init_ptr ws
    init_ptr      = ptr `plusPtr` (size_i * len)
    size_i        = fromIntegral size
 
-   go _   []     = return ()
-   go ptr (x:xs) = do
-      x ptr
-      let ptr_next = ptr `plusPtr` (-size_i)
-      go ptr_next xs
+   go _   []   = return ()
+   go p (x:xs) = do
+      _ <- x p
+      let p1 = p `plusPtr` (-size_i)
+      go p1 xs
 
 {-
 ptrInc i p        = p `plusAddr` (fromIntegral i)
@@ -120,14 +120,17 @@ stackFrame size f
 Special free routines for pointers. Use them to manually free pointers.
 
 \begin{code}
-freeMemory            = freeWithC primFreeMemory
-freeBSTR              = freeWithC primFreeBSTR
+freeMemory :: Ptr a -> IO ()
+freeMemory = freeWithC primFreeMemory
+
+freeBSTR :: Ptr a -> IO ()
+freeBSTR = freeWithC primFreeBSTR
 
 freeWithC :: Finalizer () -> Ptr a -> IO ()
 freeWithC final p = final (castPtr p)
 
 freeWith :: (Ptr a -> IO ()) -> Ptr a -> IO ()
-freeWith free p = free p 
+freeWith free p = free p
 \end{code}
 
 Helper functions that doesn't really have a good home to go to:
@@ -135,7 +138,7 @@ Helper functions that doesn't really have a good home to go to:
 \begin{code}
 always :: IO a -> IO () -> IO a
 always io action
-      = do x <- io `catch` (\ err -> do { action; ioError err })
+      = do x <- io `catchIOError` (\ err -> do { action; ioError err })
            action
            return x
 

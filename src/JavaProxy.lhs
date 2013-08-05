@@ -21,7 +21,7 @@ import BasicTypes
 import Literal
 import PP
 import PpCore ( showCore, ppType )
-import Maybe  ( mapMaybe )
+import Data.Maybe  ( mapMaybe )
 \end{code}
 
 The generator is simple-minded - spit out a pretty
@@ -32,7 +32,7 @@ Java syntax, no nothing.
 javaProxyGen :: Decl -> String
 javaProxyGen (Interface i False _ ds)
  | is_class =
-   showPPDoc 
+   showPPDoc
      (emitHeader i <+> char '{' $$
        vsep (map emitMethod ds) $$
        emitConstructor i ds     $$
@@ -49,7 +49,7 @@ type Doc = PPDoc ()
 \begin{code}
 prepareDecls :: [Decl] -> [(String,Decl)]
 prepareDecls [] = []
-prepareDecls (x:xs) = 
+prepareDecls (x:xs) =
   case x of
     Typedef{} -> prepareDecls xs
     Interface{declId=i}  -> (idOrigName i ++ "Proxy", x) : prepareDecls xs
@@ -64,7 +64,7 @@ prepareDecls (x:xs) =
 
 \begin{code}
 emitHeader :: Id -> Doc
-emitHeader i = 
+emitHeader i =
   text "public" <+> pp_kind <+> pp_name <+> pp_inherit <+> pp_implements
  where
   attrs = idAttributes i
@@ -75,48 +75,48 @@ emitHeader i =
      toNm  _					  = Nothing
 
   is_class = attrs `hasAttributeWithName` "jni_class"
-  
+
   pp_name = text ((idOrigName i) ++ "Proxy")
 
   pp_kind
    | is_class  = text "class"
    | otherwise = text "interface"
-   
+
   pp_inherit = text "extends " <+> text (idOrigName i)
 
-  pp_implements 
+  pp_implements
     | null ifaces_implemented = empty
-    | otherwise = text "implements" <+> 
+    | otherwise = text "implements" <+>
                   hsep (punctuate comma (map text ifaces_implemented))
-    
+
 \end{code}
 
 \begin{code}
 emitMethod :: Decl -> Doc
 emitMethod (Method i _ res ps _)
-  | is_ignorable = empty  
+  | is_ignorable = empty
 {-
-  | is_field = 
-    text "public" <+> pp_static <+> 
+  | is_field =
+    text "public" <+> pp_static <+>
       emitType (resultType res) <+>
     text field_name <> semi
 -}
   | otherwise = -- a trusty old method
     text "public" <+> pp_static <+>
-      emitType (resultType res) <+> 
+      emitType (resultType res) <+>
     text (idOrigName i) <+> ppTuple (zipWith emitParam ps [0..]) $$
     char '{' $$
      return_decl <+>
-       castResult (resultType res) 
+       castResult (resultType res)
        		  (fptr_call <> ppTuple (zipWith emitParamUse ps [0..]))
 		  <> semi $$
     char '}'
- where 
+ where
   attrs = idAttributes i
 
   fptr_call = text ("fptr_"++idOrigName i ++ ".call")
-  
-  return_decl 
+
+  return_decl
     | isVoidTy (resultType res) = empty
     | otherwise                 = text "return"
 
@@ -133,13 +133,13 @@ emitMethod (Method i _ res ps _)
    -- ...Leave out fields for the moment, as we don't have a
    -- good way of mapping them to a Haskell impl.
 
-  is_ignorable = attrs `hasAttributeWithNames` 
+  is_ignorable = attrs `hasAttributeWithNames`
                        ["jni_set_field", "jni_get_field", "jni_ctor"]
 --  is_field = attrs `hasAttributeWithName` "jni_get_field"
 
   is_static = attrs `hasAttributeWithName` "jni_static"
-  
-  pp_static 
+
+  pp_static
    | is_static = text "static"
    | otherwise = empty
 
@@ -149,7 +149,7 @@ emitMethod _ = empty
 
 \begin{code}
 emitType :: Type -> Doc
-emitType ty = 
+emitType ty =
   case ty of
     Integer Short _     -> text "short"
     Integer Long  _     -> text "long"
@@ -186,7 +186,7 @@ emitParamUse p idx =  boxValue (paramType p) (text ("arg"++show idx))
 
 \begin{code}
 boxValue :: Type -> Doc -> Doc
-boxValue ty d = 
+boxValue ty d =
  case ty of
     Integer _ _ -> text "new Integer" <> parens d
     Float Short -> text "new Float" <> parens d
@@ -206,7 +206,7 @@ boxValue ty d =
 
 \begin{code}
 castResult :: Type -> Doc -> Doc
-castResult t d = 
+castResult t d =
   case t of
     Integer _ _ -> parens (text "Integer") <> d <> text ".value"
     Float Short -> parens (text "Float") <> d <> text ".floatValue"
@@ -222,14 +222,14 @@ castResult t d =
     Iface _ _ o _ _ _ -> parens (text o) <> d
     Void -> d
     _ -> error ("castResult: unknown type " ++ showCore (ppType t))
-  
+
 \end{code}
 
 \begin{code}
 emitConstructor :: Id -> [Decl] -> Doc
-emitConstructor i ds = 
+emitConstructor i ds =
   vsep (map mkMethodPtr ms) $$
-  text "public" <+> text (idOrigName i ++ "Proxy") <> 
+  text "public" <+> text (idOrigName i ++ "Proxy") <>
     ppTuple (zipWith (\ x _ -> text ("FunctionPtr arg" ++ show x))
     		     idxs
 		     ms) $$
@@ -241,15 +241,15 @@ emitConstructor i ds =
 
   idxs = [(0::Int)..]
 
-  assignFptr idx m = 
+  assignFptr idx m =
     functionPtrName m <+> equals <+> text ("arg"++show idx) <> semi
-     
+
   functionPtrName d = text ("fptr_" ++ idOrigName (declId d))
 
    -- should qualify FunctionPtr with its package name.
-  mkMethodPtr d = 
+  mkMethodPtr d =
      text "private FunctionPtr" <+> functionPtrName d <> semi
 
-  isMethod d = not (idAttributes (declId d) `hasAttributeWithNames` 
+  isMethod d = not (idAttributes (declId d) `hasAttributeWithNames`
   		    ["jni_set_field", "jni_get_field", "jni_ctor"])
 \end{code}

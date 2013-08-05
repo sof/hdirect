@@ -4,7 +4,7 @@
 %
 
 \begin{code}
-module SrcLoc 
+module SrcLoc
        (
           SrcLoc
         , mkSrcLoc
@@ -21,7 +21,7 @@ import PP
 data SrcLoc
  = SrcLoc String  -- module name
           Int     -- line number
-          
+
  | NoSrcLoc
 
 mkSrcLoc :: String -> Int -> SrcLoc
@@ -36,15 +36,15 @@ dummySrcLoc = NoSrcLoc
 
 incSrcLineNo :: SrcLoc -> SrcLoc
 incSrcLineNo NoSrcLoc = NoSrcLoc
-incSrcLineNo (SrcLoc mod l) = SrcLoc mod (l+1)
+incSrcLineNo (SrcLoc m l) = SrcLoc m (l + 1)
 \end{code}
 
 \begin{code}
 ppSrcLoc :: SrcLoc -> PPDoc a
-ppSrcLoc (SrcLoc mod lno) = text mod <> char ':' <> int lno
+ppSrcLoc (SrcLoc m lno) = text m <> char ':' <> int lno
 ppSrcLoc NoSrcLoc = text "<unknown module, unknown line>"
 
-instance Show SrcLoc where 
+instance Show SrcLoc where
   showsPrec _ loc = \ str -> (showPPDoc (ppSrcLoc loc) undefined) ++ str
 
 \end{code}

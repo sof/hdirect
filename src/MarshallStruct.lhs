@@ -37,8 +37,8 @@ import MarshallDep ( marshallDependents
 		   , unmarshallDependents
 		   )
 import MarshallCore
-import List	   ( findIndex, partition )
-import Maybe	   ( mapMaybe  )
+import Data.List   ( findIndex, partition )
+import Data.Maybe  ( mapMaybe  )
 import Utils	   ( diff, notNull )
 import Opts	   ( optCom )
 
@@ -50,13 +50,13 @@ a list of current shortcomings/ToDos:
  - structure layout is very simplistic and wrong.
  - there's chance of name capture, as the marshalling
    routines introduce the names "ptr" and "pf"[0-9]+
- - [ignore] attributes may just work..(lightly tested.)   
+ - [ignore] attributes may just work..(lightly tested.)
 
 \begin{code}
-marshallStruct :: Name 
-	       -> Id 
-	       -> Haskell.ConDecl 
-	       -> [Field] 
+marshallStruct :: Name
+	       -> Id
+	       -> Haskell.ConDecl
+	       -> [Field]
 	       -> Maybe Int
 	       -> CgM HDecl
 marshallStruct tdef_name struct_tag datacon fields mb_pack = do
@@ -80,9 +80,9 @@ marshallStruct tdef_name struct_tag datacon fields mb_pack = do
 
      {-
        To be able to marshal stuff like
-       
-         typedef struct { uint64 w ; } ULARGE_INTEGER;     
-     
+
+         typedef struct { uint64 w ; } ULARGE_INTEGER;
+
        by value, we need to check if this is possible.
      -}
     simplStruct = length (fields) == 1 &&
@@ -105,7 +105,7 @@ marshallStruct tdef_name struct_tag datacon fields mb_pack = do
     pf0         = var "pf0"
     field_names = map (idName.fieldId) fields
 
-    structCon  = conDeclToCon datacon 
+    structCon  = conDeclToCon datacon
     structPat  = conDeclToPat datacon
 
     {-
@@ -141,20 +141,20 @@ marshallStruct tdef_name struct_tag datacon fields mb_pack = do
     				  dep_list (findFieldOrigTy fields)
       -- here's a hack for you: when writing the contents of a field such
       --    [size_is(x)]int y[];
-      -- 
+      --
       -- we cannot do the normal trick of first marshalling the Haskell list
       -- representing 'y' into a chunk of mem. followed by filling in the struct
       -- with a pointer to it, because the assumed layout is for y[] to be inlined
-      -- into the struct. 
-      -- 
+      -- into the struct.
+      --
       -- The solution is to remove such fields from the list that's presented to
       -- the 'dependent-arg' marshalling code.
-      -- 
-     
+      --
+
     -- *** Reference unmarshalling ***
     r_name   = qName (prefix unmarshallRefPrefix name)
     r_tysig  = typeSig r_name r_type
-    r_type 
+    r_type
       | final_fields = funTy tyBool (funTy (tyPtr b_ty) (io t_ty))
       | otherwise    = funTy (tyPtr b_ty) (io t_ty)
     r_def    = funDef r_name r_pats r_rhs
@@ -184,7 +184,7 @@ marshallStruct tdef_name struct_tag datacon fields mb_pack = do
     u_tysig  = typeSig u_name (funTy field_h_ty (io t_ty))
     u_def    = funDef u_name [varPat v_field] u_rhs
     u_rhs    = ret structCon -- we know it is already in an unmarshaled form!
-	 
+
 
     s_name   = qName (prefix sizeofPrefix name)
     s_tysig  = typeSig s_name tyWord32
@@ -200,7 +200,7 @@ marshallStruct tdef_name struct_tag datacon fields mb_pack = do
 
     -- Freeing a struct.
     needToFree = needsFreeing (Struct struct_tag fields Nothing)
-    
+
     f_name   = qName (prefix freePrefix name)
     f_tysig  = typeSig f_name (funTy (tyPtr b_ty) (io_unit))
     f_def    = funDef f_name [varPat ptr] f_rhs
@@ -226,7 +226,7 @@ marshallStruct tdef_name struct_tag datacon fields mb_pack = do
 
     freeField (f , offset)
       | not (needsFreeing (fieldType f)) = Nothing
-      | otherwise			 = 
+      | otherwise			 =
 	 let
 	  ty = fieldOrigType f
 	  e  = freeType ty
@@ -255,8 +255,8 @@ next "struct" field (if any.)
 refMarshallField :: DependInfo
 		 -> (Name -> Int)
 		 -> (Name -> Type)
-		 -> Int 
-		 -> Int 
+		 -> Int
+		 -> Int
 		 -> (Field, Bool)
 		 -> (Haskell.Expr -> Haskell.Expr)
 refMarshallField dep_list to_offset lookup_ty offset field_no (field, is_last) = \ hole ->
@@ -272,13 +272,13 @@ refMarshallField dep_list to_offset lookup_ty offset field_no (field, is_last) =
       which computes the dependee argument here rather than
       in MarshallType.refMarshallType.
     -}
-   args 
+   args
     | isNonEncUnionTy ty = [dependee_arg, pf, fi]
     | otherwise          = [pf, fi]
 
    dependee_arg =
     case (getSwitchIsAttribute (idAttributes f_id)) of
-      Just e | notNull fs -> 
+      Just e | notNull fs ->
 	let v = head fs in
 	funApply (refMarshallType stubMarshallInfo (toBaseTy (lookup_ty v)))
 		 [addPtr (var "pf0") (lit (iLit (to_offset v)))]
@@ -288,7 +288,7 @@ refMarshallField dep_list to_offset lookup_ty offset field_no (field, is_last) =
       _      -> (lam [wildPat] (ret unit))
 
    mshaller
-    | isDepender dep_list f_id && 
+    | isDepender dep_list f_id &&
       not (isSwitchDepender dep_list f_id) &&
       not (isArrayTy ty)
         = refMarshallType structMarshallInfo addrTy
@@ -299,7 +299,7 @@ refMarshallField dep_list to_offset lookup_ty offset field_no (field, is_last) =
 	-}
     | isVariantTy ty = varName (prefix copyPrefix vARIANT)
     | otherwise      = refMarshallType structMarshallInfo ty
-    
+
 
    fi
     | hasIgnoreAttribute f_id = varName nullPtr
@@ -318,7 +318,7 @@ to its Haskell representation, @refUnMarshallField@ takes
 care of generating code to unpack a given field.
 
 \begin{code}
-refUnmarshallField :: (Name -> Int) 
+refUnmarshallField :: (Name -> Int)
 		   -> (Name -> Type)
 		   -> Int
 		   -> Int
@@ -335,13 +335,13 @@ refUnmarshallField to_offset lookup_ty offset field_no (field, is_last) hole =
    pf      = mkFieldPtrName field_no
    pf_prev = mkFieldPtrName (field_no -1)
 
-   args 
+   args
     | isNonEncUnionTy ty = [dependee_arg, pf]
     | otherwise          = [pf]
 
    dependee_arg =
     case (getSwitchIsAttribute (idAttributes f_id)) of
-      Just e | notNull fs -> 
+      Just e | notNull fs ->
 	let v = head fs in
 	funApply (refUnmarshallType structMarshallInfo (toBaseTy (lookup_ty v)))
 		 [addPtr (var "pf0") (lit (iLit (to_offset v)))]
@@ -349,10 +349,10 @@ refUnmarshallField to_offset lookup_ty offset field_no (field, is_last) hole =
         fs = findFreeVars e
       _ -> ret (lit (iLit ((-1)::Int)))
 
-   binders 
+   binders
     | hasIgnoreAttribute f_id = hLet fi (varName nullPtr)
     | otherwise               = bind (funApply un_marshaller args) fi
-  
+
    un_marshaller
 	--
 	-- A special case is VARIANT types, which are represented

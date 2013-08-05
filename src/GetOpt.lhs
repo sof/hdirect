@@ -38,14 +38,14 @@ module GetOpt
         , thenOpt     -- :: Opt a b -> Opt a b -> Opt a b
 
           -- try matching --{disable,enable}-foo
-        , toggle     -- :: String 
-                     -- -> String 
-                     -- -> String 
-                     -- -> (Bool -> a -> a) 
+        , toggle     -- :: String
+                     -- -> String
+                     -- -> String
+                     -- -> (Bool -> a -> a)
                      -- -> Opt a ()
-        , toggles    -- :: String 
-                     -- -> String 
-                     -- -> [(String,Bool -> a->a)] 
+        , toggles    -- :: String
+                     -- -> String
+                     -- -> [(String,Bool -> a->a)]
                      -- -> Opt a ()
 
          -- try matching -ifoo (where -i is the prefix)
@@ -71,7 +71,7 @@ module GetOpt
         ) where
 
 import Utils ( prefix )
-import Monad
+import Control.Monad
 
 infixr 1  `bindOpt`, `seqOpt`
 -- needed for older Hugsen.
@@ -83,7 +83,7 @@ to do on the command line contents, threading a value
 that will record what we've seen so far plus the remainder
 of the command-line.
 
-\begin{code} 
+\begin{code}
 data Opt a b = Opt ([String] -> a -> Maybe ([String],a,b))
 
 -- bind & return over Opt
@@ -91,7 +91,7 @@ bindOpt :: Opt a b -> (b -> Opt a c) -> Opt a c
 bindOpt (Opt opt_a) fopt = Opt (\ args st ->
    case opt_a args st of
      Nothing            -> Nothing
-     Just (args',st',v) -> 
+     Just (args',st',v) ->
        case fopt v of Opt opt_b -> opt_b args' st')
 
 seqOpt :: Opt a b -> Opt a c -> Opt a c
@@ -122,7 +122,7 @@ updState f = Opt (\ args st -> Just (args, f st, ()))
 result :: a -> Opt a ()
 result v = updState (\ _ -> v)
 -}
-  
+
  -- a not-that-useful operation on Opt.
 mapOpt :: (b -> c) -> Opt a b -> Opt a c
 mapOpt f (Opt opt) = Opt (\ args st ->
@@ -140,9 +140,9 @@ instance Functor (Opt s) where
   fmap = mapOpt
 
 instance MonadPlus (Opt s) where
-  mplus = thenOpt    
+  mplus = thenOpt
   mzero = failed
-  
+
  -- no match.
 failed :: Opt a b
 failed = Opt (\ _ _ -> Nothing)
@@ -195,7 +195,7 @@ prefixed pre n_opt = do
 matches :: (String -> Bool) -> (String -> Opt a b) -> Opt a b
 matches matcher opt = do
    arg <- popArg
-   if matcher arg 
+   if matcher arg
     then opt arg
     else failed
 
@@ -261,7 +261,7 @@ string str =  do
   case rest of
     [] -> returnOpt ()
     _  -> failed
-  
+
 (-=) :: String -> a -> Opt [a] ()
 (-=) str v = flag str (v:)
 
@@ -272,11 +272,11 @@ string str =  do
 (-===) str f = optionArg str (\ val -> updState ((f val):))
 
 (-====) :: String -> (Maybe String -> a) -> Opt [a] ()
-(-====) str f = 
-  optionWithOptArg 
-   str 
+(-====) str f =
+  optionWithOptArg
+   str
    (popArg >>= \ val -> updState ((f (Just val)):))
- 
+
 (-?) :: (String -> Bool) -> (String -> a) -> Opt [a] ()
 (-?) matcher f = matches matcher (\ ls -> updState ((f ls):))
 \end{code}

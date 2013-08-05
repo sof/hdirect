@@ -6,18 +6,18 @@
 %
 
 \begin{code}
-module MarshallUtils 
+module MarshallUtils
 	(
 	  mkHVar
 	, adjustField
-	
+
 	, prefixHTy
 	, appHTy
-	
+
 	, infoHeader
-	
+
 	, helpStringComment
-	
+
 	, toHaskellIfaceTy
 
 	, findParamDependents
@@ -42,7 +42,7 @@ import PpAbstractH ( ppType, showAbstractH )
 import LibUtils
 
 import Literal
-import List  ( intersperse )
+import Data.List ( intersperse )
 import Utils ( notNull )
 import Opts  ( optShowIDLInComments, optIgnoreHelpstring,
 	       optCorba, optHaskellToC, optJNI, optSubtypedInterfacePointers )
@@ -67,7 +67,7 @@ adjustField :: Bool -> [(Id,[Dependent])] -> Field -> Maybe Field
 adjustField forMarshalling dep_list f
 --  isSwitchDependee dep_list (fieldId f) = Nothing
  | isDepender dep_list i && not (isArrayTy ty)
- = 
+ =
     if (forMarshalling && not (isIfaceTy ty)) || isSwitchDepender dep_list i then
        Just (f{fieldType=mkPtrPointer ty})
     else
@@ -85,7 +85,7 @@ adjustField forMarshalling dep_list f
 
 \begin{code}
 prefixHTy :: String -> Haskell.Type -> QualName
-prefixHTy pre ty = 
+prefixHTy pre ty =
   case ty of
     Haskell.TyVar _ tv  -> prefix pre tv
     Haskell.TyCon tc    -> prefix pre tc
@@ -94,7 +94,7 @@ prefixHTy pre ty =
     _ -> error ("prefixHTy: unexpected type" ++ showAbstractH (ppType ty))
 
 appHTy :: String -> Haskell.Type -> QualName
-appHTy pre ty = 
+appHTy pre ty =
   case ty of
     Haskell.TyVar _ tv  -> prefixApp pre tv
     Haskell.TyCon tc    -> prefixApp pre tc
@@ -119,7 +119,7 @@ infoHeader d =
 	 header "coclass" (idOrigName i)    `andDecl`
 	 coIdlDecls			    `andDecl`
          line
- 
+
   DispInterface i _ _ _ ->
 	 header "dispinterface" (idOrigName i)  `andDecl`
 	 idlDecls                               `andDecl`
@@ -127,18 +127,18 @@ infoHeader d =
 
   _ -> emptyDecl
  where
-  header pre nm = 
+  header pre nm =
     line                   `andDecl`
     comment ""	           `andDecl`
     comment (pre++' ':nm)  `andDecl`
     comment ""
-	   
-  ifaces = 
+
+  ifaces =
     case d of
       CoClass _ ds -> map toStr ds
       _ -> error "MarshallUtils.infoHeader: Expected a coclass."
-   
-  toStr dcl = 
+
+  toStr dcl =
 	let
 	 i     = coClassId dcl
 	 attrs = idAttributes i
@@ -159,7 +159,7 @@ infoHeader d =
    | otherwise		  = emptyDecl
 
   line = comment "--------------------------------------------------"
- 
+
 
 \end{code}
 
@@ -200,7 +200,7 @@ toHaskellIfaceTy _ = error "toHaskellIfaceTy: not an interface type"
 Given a parameter dependency list, figure out which parameters
 should be represented as a Haskell list.
 
-[This code is somewhat simplistic, as being a dependent doesn't necessarily 
+[This code is somewhat simplistic, as being a dependent doesn't necessarily
  mean that a pair of parameters to an IDL method should be coalesced
  into a Haskell list.]
 
@@ -208,26 +208,26 @@ should be represented as a Haskell list.
 findParamDependents :: Bool -> [Param] -> ( [Param], DependInfo )
 findParamDependents isOut ps = (removeDependees deps ps, deps)
  where
-  deps = filter (notNull.snd) $     -- 12/98: strengthened - deps list now 
+  deps = filter (notNull.snd) $     -- 12/98: strengthened - deps list now
 				    -- only contain the real dependent args.
          (if isOut then (\ ls -> zipWith notVoidPtr ps ls) else id) $
 	 findDependents (map paramId ps)
 
   notVoidPtr _ t@(_,[]) = t
-  notVoidPtr p t@(x,_) 
+  notVoidPtr p t@(x,_)
     | isVoidPointerTy (paramType p) = (x,[])
     | otherwise = t
 
 findFieldDependents :: [Field] -> DependInfo
 findFieldDependents fs = deps
  where
-  deps = filter (notNull.snd) $     -- 12/98: strengthened - deps list now 
+  deps = filter (notNull.snd) $     -- 12/98: strengthened - deps list now
 				    -- only contain the real dependent args.
          (\ ls -> zipWith notVoidPtr fs ls) $
 	 findDependents (map fieldId fs)
 
   notVoidPtr _ t@(_,[]) = t
-  notVoidPtr f t@(x,_) 
+  notVoidPtr f t@(x,_)
     | isVoidPointerTy (fieldType f) = (x,[])
     | otherwise = t
 

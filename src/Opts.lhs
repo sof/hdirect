@@ -1,4 +1,4 @@
-% 
+%
 % (c) The Foo Project, University of Glasgow, 1998
 %
 % @(#) $Docid: Dec. 9th 2003  08:37  Sigbjorn Finne $
@@ -10,24 +10,24 @@ module Opts where
 
 import Data.IORef
 import GetOpt
-import System
+import System.Environment
 import System.IO.Unsafe ( unsafePerformIO)
-import IO     ( hPutStrLn, stderr )
-import Monad  ( when )
+import System.IO ( hPutStrLn, stderr )
+import Control.Monad ( when )
 import Utils  ( split, trace, notNull )
 import Version
 {- BEGIN_USE_REGISTRY
 import Utils ( bailIf, hdirect_root )
-import 
+import
        Win32Registry  ( hKEY_LOCAL_MACHINE, regQueryValue, regOpenKeyEx, kEY_READ, regEnumKeyVals )
-import 
+import
        StdDIS	      ( MbString )
    END_USE_REGISTRY -}
 
 \end{code}
 
 Grimy stuff - to make it sort of possible to use the compiler
-from within Hugs. 
+from within Hugs.
 
 \begin{code}
 ihc_opts :: [Option]
@@ -61,7 +61,7 @@ defaultArgs =
     _         -> []
 
 derivedArgs :: [(String, [String])]
-derivedArgs = 
+derivedArgs =
   ("-fautomation", autoOptions):
   filter ((/= "default").fst) registryOptions
 
@@ -69,10 +69,10 @@ autoOptions :: [String]
 autoOptions = words $
 {- BEGIN_USE_REGISTRY
   unsafePerformIO $
-  catch 
+  catch
     (do
       hk <- regOpenKeyEx hKEY_LOCAL_MACHINE hdirect_root kEY_READ
-      v <- regQueryValue hk (Just "CurrentVersion") 
+      v <- regQueryValue hk (Just "CurrentVersion")
       bailIf (null v) (return default_opts) $ do
        -- figure out where the latest dist resides.
       hk <- regOpenKeyEx hKEY_LOCAL_MACHINE (hdirect_root ++ "options\\" ++ v) kEY_READ
@@ -93,10 +93,10 @@ registryOptions = []
 {- END_NOT_USE_REGISTRY   -}
 {- BEGIN_USE_REGISTRY
 registryOptions = unsafePerformIO $
-  catch 
+  catch
     (do
       hk <- regOpenKeyEx hKEY_LOCAL_MACHINE hdirect_root kEY_READ
-      v <- regQueryValue hk (Just "CurrentVersion") 
+      v <- regQueryValue hk (Just "CurrentVersion")
       hk <- regOpenKeyEx hKEY_LOCAL_MACHINE (hdirect_root ++ '\\':v ++ "\\options") kEY_READ
       vs <- regEnumKeyVals hk
       let
@@ -193,7 +193,7 @@ optUnparamedInterfacePointers = any (OptUnParam'dIPointers==) ihc_opts
 -- Subtyped interface pointers are the default, only way turn this off
 -- is via the use of -funparamed-interface-pointers. (or -fhs-to-c.)
 optSubtypedInterfacePointers :: Bool
-optSubtypedInterfacePointers = 
+optSubtypedInterfacePointers =
     any (OptSubTypedInterfacePointers==) ihc_opts ||
     (not optUnparamedInterfacePointers && not optHaskellToC)
 
@@ -221,7 +221,7 @@ optDualVtbl		= any (OptDualVtbl==) ihc_opts
 optCompilingDceIDL	= any (OptCompilingDceIDL==) ihc_opts
 -- MsIDL is currently the default.
 optCompilingMsIDL, optCompilingOmgIDL :: Bool
-optCompilingMsIDL	= any (OptCompilingMsIDL==) ihc_opts 
+optCompilingMsIDL	= any (OptCompilingMsIDL==) ihc_opts
 			    || (not optCompilingDceIDL && not optCompilingOmgIDL)
 optCompilingOmgIDL	= any (OptCompilingOmgIDL==) ihc_opts
 
@@ -292,19 +292,19 @@ optCom :: Bool
 optCom = not optJNI && not optCorba && not optHaskellToC && not optCompilingOmgIDL
 
 optIgnoreMethsUpto :: Maybe String
-optIgnoreMethsUpto       = 
+optIgnoreMethsUpto       =
    case [ p | OptIgnoreMethsUpto p <- ihc_opts ] of
      [] -> Nothing
      ls -> Just (last ls)  -- last entry on the command line wins.
 
 optPointerDefault :: Maybe String
-optPointerDefault        = 
+optPointerDefault        =
    case [ p | OptPointerDefault p <- ihc_opts ] of
      [] -> Nothing
      ls -> Just (last ls)  -- last entry on the command line wins.
 
 optOutputDumpTo :: Maybe String
-optOutputDumpTo          = 
+optOutputDumpTo          =
    case [ p | OptOutputDump p <- ihc_opts ] of
      [] -> Nothing
      ls -> Just (last ls)  -- last entry on the command line wins.
@@ -324,13 +324,13 @@ optAsfs        = [ f | OptAsf f  <- ihc_opts]
 optUseAsfs :: Bool
 optUseAsfs     = notNull optAsfs
 optOFiles :: [String]
-optOFiles      = [ o | OptOutputFile o <- ihc_opts] 
+optOFiles      = [ o | OptOutputFile o <- ihc_opts]
 optODirs  :: [String]
 optODirs       = [ o | OptOutputDir o <- ihc_opts ] -- a smelly one (sorry, couldn't resist :)
 
 optincludedirs :: [String]
-optincludedirs = 
-{- BEGIN_SUPPORT_TYPELIBS 
+optincludedirs =
+{- BEGIN_SUPPORT_TYPELIBS
   concat [split ';' d | OptIncludeDirs d <- reverse ihc_opts]
    END_SUPPORT_TYPELIBS -}
 {- BEGIN_NOT_SUPPORT_TYPELIBS -}
@@ -338,7 +338,7 @@ optincludedirs =
 {- END_NOT_SUPPORT_TYPELIBS -}
 
 optinclude_cppdirs :: [String]
-optinclude_cppdirs = 
+optinclude_cppdirs =
   concat [split ':' d | OptIncludeCppDirs d <- reverse ihc_opts]
 
 optcpp_defines :: [String]
@@ -357,7 +357,7 @@ name    = pkg_name
 version = pkg_version
 
 version_msg :: String
-version_msg = 
+version_msg =
  unlines
  [ name ++ ", " ++ version
  , ""
@@ -365,7 +365,7 @@ version_msg =
  ]
 
 usage_msg :: String -> String
-usage_msg pgm = 
+usage_msg pgm =
  unlines
  [ "Usage: " ++ pgm ++ " [OPTION]... SOURCE"
  , ""
@@ -426,7 +426,7 @@ usage_msg pgm =
  , " -fsort-defns                  re-order the input to make definition occur be any use."
  , ""
  , " -fdual-vtbl                   for dual interfaces, generate stubs that invoke"
- , "                               methods via vtbl entries rather than via IDispatch" 
+ , "                               methods via vtbl entries rather than via IDispatch"
  , ""
  , " -fno-import-lists             don't generate detailed import lists"
  , " -fno-imports                  leave out import section alltogether"
@@ -468,11 +468,11 @@ usage_msg pgm =
 
 \begin{code}
 options :: Opt [Option] ()
-options = 
-  (prefixed "-" $ 
+options =
+  (prefixed "-" $
    opts
       [ prefixed "-" $
-         opts 
+         opts
            [ "version"	    -=     DumpVersion
    	   , "gc"	    -=     OptGreenCard
 	   , "hugs"	    -=     OptHugs
@@ -499,7 +499,7 @@ options =
 	   , "asf="           -==  OptAsf
            ]
       , prefixed "f" $
-         opts 
+         opts
 	   [ "anon-typelib"                -= OptAnonTLB
 	   , "com"			   -= OptCompilingMsIDL
 	   , "char-ptr-is-string"	   -= OptCharPtrIsString
@@ -577,7 +577,7 @@ options =
 	   , "void-typedef-is-abstract"    -= OptVoidTydefIsAbstract
 	   , "winnow-defns"		   -= OptWinnowDefns
 	   ]
-	   
+
       , prefixed "ddump-" $
                opts [ "ds"    -= DumpDesugar
 	            , "idl"   -= DumpIDL
@@ -603,7 +603,7 @@ options =
       "D"	        -== (\ s -> OptCppDefine ('-':'D':s)),
       "U"	        -== (\ s -> OptCppDefine ('-':'U':s))
      ]) `orOpt`
-    (((\ opt -> head opt == '-' && notNull (tail opt)) -? 
+    (((\ opt -> head opt == '-' && notNull (tail opt)) -?
 		(\ opt -> trace ("Unrecognised option: " ++ opt ++ ", ignoring.") OptIgnore))
 		  `orOpt`
     ((const True)  -? OptFile))
@@ -723,7 +723,7 @@ data Option
  | OptOutputFile   String
  | OptOutputDir    String
  | OptAsf          String
- | OptFile         String 
+ | OptFile         String
    deriving ( Eq )
 
 \end{code}

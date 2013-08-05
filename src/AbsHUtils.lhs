@@ -9,7 +9,7 @@ Disjoint set of utilities for working with the @AbstractH@
 type.
 
 \begin{code}
-module AbsHUtils 
+module AbsHUtils
 	(
 	  tyConst
 	, tyQConst
@@ -63,6 +63,8 @@ module AbsHUtils
 	, tyUnit
 	, purifyType
 	, isIOTy
+
+	, ioRefType
 
 	, recCon
 	, recConBanged
@@ -154,7 +156,7 @@ module AbsHUtils
 	, appendStr
 
 	, isVarsEq
-	
+
 	, hModule
 	, hMeta
 	, cMeta
@@ -176,13 +178,13 @@ module AbsHUtils
 	, mkTyVar
 	, mkQTyVar
 	, mkQTyCon
-	
+
 	, mkIntTy
 	, mkCharTy
 	, mkFloatTy
-	
+
 	, findIncludes
-	
+
 	, mkTySig
 	, replaceTyVar
 
@@ -196,9 +198,9 @@ import Opts    ( optIntsEverywhere, optIntAsWord
 	       , optIntIsInt, optLongLongIsInteger
 	       , optNoWideStrings
 	       )
-import Maybe   ( fromMaybe, isJust )
-import Char    ( isLower )
-import List    ( mapAccumL, intersperse )
+import Data.Maybe   ( fromMaybe, isJust )
+import Data.Char    ( isLower )
+import Data.List    ( mapAccumL, intersperse )
 
 -- This should be the default, but older versions (e.g., Jan 98) of
 -- Hugs insist on this one..
@@ -223,11 +225,11 @@ libTyQName ty_mod marshall_mod con = (mkQTyCon marshall_mod con){qDefModule=ty_m
  "Foo.Bar a" into a type application.
 -}
 mkTyConst :: QualName -> Type
-mkTyConst qv 
-  | not (isJust (qModule qv)) && 
+mkTyConst qv
+  | not (isJust (qModule qv)) &&
     isLower (head (qName qv))
   = TyVar False (mkTyVar (qName qv))
-  | length args > 1 
+  | length args > 1
   = TyApply (TyCon (qv{qName=a})) (map ((TyVar False). mkTyVar) as)
   | otherwise = TyCon qv
  where
@@ -281,20 +283,20 @@ isNonUniqTyVar _               = False
 unconstrainType :: Type -> ([(Context,TyVar)], Type)
 unconstrainType tx = go [] tx
  where
-   go acc t = 
+   go acc t =
     case t of
-      TyApply f args  -> 
+      TyApply f args  ->
 		let
 		 (acc1, f')    = go acc f
 		 (acc2, args') = mapAccumL go acc1 args
 		in
 		(acc2, TyApply f' args')
-      TyTuple ts      -> 
+      TyTuple ts      ->
     		let
 		 (acc1, ts') = mapAccumL go acc ts
 		 in
 		 (acc1, TyTuple ts')
-      TyFun t1 t2     -> 
+      TyFun t1 t2     ->
 		let
 		 (acc1, t1') = go acc  t1
 		 (acc2, t2') = go acc1 t2
@@ -322,9 +324,9 @@ groundTyVars t =
  where
   groundTyVar ty
     | isNonUniqTyVar ty = tyUnit
-    | otherwise         = 
+    | otherwise         =
     	case ty of
---	  TyApply (TyCon tc) args 
+--	  TyApply (TyCon tc) args
 --	    | qName tc == "Maybe" -> TyApply (TyCon tc) (map groundTyVars args)
 	  TyApply tc args -> TyApply tc (map groundTyVars args)
 	  TyFun t1 t2 -> TyFun (groundTyVars t1) (groundTyVars t2)
@@ -335,12 +337,12 @@ renameTyVar new_nm (TyVar x _) = TyVar x (mkTyVar new_nm)
 renameTyVar _ t = t
 
 replaceTyVar :: Type -> Type -> Type
-replaceTyVar newTy ty = 
+replaceTyVar new_ty ty =
   case ty of
-    TyVar _ _ -> newTy
-    TyApply f args -> TyApply f (map (replaceTyVar newTy) args)
-    TyTuple ts -> TyTuple (map (replaceTyVar newTy) ts)
-    TyFun a b -> TyFun (replaceTyVar newTy a) (replaceTyVar newTy b)
+    TyVar _ _ -> new_ty
+    TyApply f args -> TyApply f (map (replaceTyVar new_ty) args)
+    TyTuple ts -> TyTuple (map (replaceTyVar new_ty) ts)
+    TyFun a b -> TyFun (replaceTyVar new_ty a) (replaceTyVar new_ty b)
     _ -> ty
 
 {-
@@ -348,13 +350,13 @@ replaceTyVar newTy ty =
  type variables so as to make them unique.
 -}
 generaliseTys :: [Type] -> ([Type], Maybe Context)
-generaliseTys tys = 
+generaliseTys tys =
   case (go nm_supply [] tys) of
     (ts, []) -> (ts, Nothing)
     (ts, ls) -> (ts, Just (CtxtTuple (reverse ls)))
   where
     nm_supply = map (\ x -> 'a':show x) [(0::Int)..]
-    
+
     substCtxt s x (CtxtTuple ls)   = CtxtTuple (map (substCtxt s x) ls)
     substCtxt s x (CtxtClass c ts) = CtxtClass c (map (substTyVar s x) ts)
 
@@ -364,13 +366,13 @@ generaliseTys tys =
 	TyApply t1 ty_args -> TyApply t' ty_args'
 	  where
 	   (t':ty_args') = map (substTyVar o_t x) (t1:ty_args)
-        TyList t1  -> TyList  (substTyVar o_t x t1)    
+        TyList t1  -> TyList  (substTyVar o_t x t1)
 	TyTuple ts -> TyTuple (map (substTyVar o_t x) ts)
 	TyFun a b  -> TyFun   (substTyVar o_t x a)
 			      (substTyVar o_t x b)
 	TyCtxt c t1 -> TyCtxt (substCtxt o_t x c)
 			      (substTyVar o_t x t1)
-	_ -> t			      
+	_ -> t
 
     go _ acc [] = ([], acc)
     go supply@(s:ss) acc_ctxt (x:xs) =
@@ -381,7 +383,7 @@ generaliseTys tys =
 	    (xs',acc) = go ss acc_ctxt xs
 	  in
 	  (x' : xs', acc)
-	TyCtxt ctxt tv@(TyVar fixed n) | not fixed -> 
+	TyCtxt ctxt tv@(TyVar fixed n) | not fixed ->
 	  let
 	    tv'   = renameTyVar s tv
 	    ctxt' = substCtxt tv' n ctxt
@@ -394,7 +396,7 @@ generaliseTys tys =
 	   (t':ty_args', rs) = splitAt (length ty_args + 1) ts
           in
 	  (TyApply t' ty_args' : rs, acc)
-	TyList t   -> 
+	TyList t   ->
 	  let
 	   (t':xs', acc) = go supply acc_ctxt (t:xs)
 	  in
@@ -411,7 +413,7 @@ generaliseTys tys =
 	   (t1' : t2' : xs', acc) = go supply acc_ctxt (t1:t2:xs)
           in
 	  (TyFun t1' t2' :  xs', acc)
-	_ -> 
+	_ ->
           let
 	   (xs', acc) = go supply acc_ctxt xs
 	  in
@@ -423,8 +425,8 @@ generaliseTys tys =
 --
 {- I suspect this is no longer needed - leaving it out for now.
 relabelTypes :: [Type] -> [Type]
-relabelTypes ts = 
-  case (go supply [] ts) of 
+relabelTypes ts =
+  case (go supply [] ts) of
     (ts,_,_) -> ts
   where
     supply = map (\ x -> 'a':show x) [0..]
@@ -434,10 +436,10 @@ relabelTypes ts =
       case x of
         TyVar fixed v ->
 	  case lookup v acc of
-	    Nothing -> 
+	    Nothing ->
 		let (xs',s',acc') = go ss ((v,s):acc) xs in
 		((TyVar fixed (mkTyVar s)):xs',s',acc')
-	    Just tv -> 
+	    Just tv ->
 	        let (xs',s',acc') = go supply acc xs in
 		(TyVar fixed (mkTyVar tv) : xs',s',acc')
         TyApply t tvs ->
@@ -471,7 +473,7 @@ relabelTypes ts =
 	     ([t'], supply', acc') = go supply acc [t]
 	    in
 	    ([TyCtxt c t'], supply', acc')
-	_ -> 
+	_ ->
 	    let
 	     (xs', ss , acc') = go supply acc xs
 	    in
@@ -497,7 +499,7 @@ tuple ts  = TyTuple ts
 tyInt8Name, tyInt16Name, tyInt32Name, tyInt64Name, tyIntName :: QualName
 (tyInt8Name, tyInt16Name, tyInt32Name, tyInt64Name)
   | optIntsEverywhere = (tyIntName, tyIntName, tyIntName, tyIntName)
-  | otherwise         = 
+  | otherwise         =
      ( libTyQName intLib hdirectLib "Int8"
      , libTyQName intLib hdirectLib "Int16"
      , libTyQName intLib hdirectLib "Int32"
@@ -529,7 +531,7 @@ anyTyPtr :: Type
 anyTyPtr = tyPtr (uniqueTyVar "a")
 
 tyStable :: Type
-tyStable = mkTyCon (libTyQName foreignLib hdirectLib "StablePtr") [uniqueTyVar "a"]
+tyStable = mkTyCon (libTyQName stablePtrLib hdirectLib "StablePtr") [uniqueTyVar "a"]
 
 tyForeignObj :: Type
 tyForeignObj = tyForeignPtr tyUnit
@@ -551,11 +553,14 @@ isPtrTy (TyApply (TyCon tc) _) = nm == ptrName || nm == foreignPtrName
 isPtrTy _ = False
 
 toPtrTy :: Type -> Type
-toPtrTy ty@(TyApply (TyCon tc) [t]) 
+toPtrTy ty@(TyApply (TyCon tc) [t])
  | qName tc == foreignPtrName = tyPtr (toPtrTy t)
  | otherwise = ty
 toPtrTy (TyApply tc ts) = TyApply tc (map toPtrTy ts)
 toPtrTy t = t
+
+ioRefType :: Type -> Type
+ioRefType ty = mkTyCon ioRefName [ty]
 
 isVARIANTTy :: Type -> Bool
 isVARIANTTy (TyCon tc) = qName tc == "VARIANT"
@@ -565,7 +570,7 @@ tyString :: Type
 tyString = tyQConst prelude stringName
 
 tyWString :: Type
-tyWString 
+tyWString
   | optNoWideStrings = tyString
   | otherwise        = tyQConst wStringLib "WideString"
 
@@ -624,7 +629,7 @@ isIOTy _					    = False
 
 purifyType :: Type -> Type
 purifyType (TyFun x y@TyFun{}) = TyFun x (purifyType y)
-purifyType t@(TyFun x y) 
+purifyType t@(TyFun x y)
  | isIOTy y = case y of { (TyApply _ [arg]) -> TyFun x arg ; _ -> t}
 purifyType t = t
 
@@ -659,11 +664,11 @@ newTy dname tvs constr ls = TyD (TyDecl Newtype dname tvs [constr] ls)
 
 hInstance :: Maybe [(ClassName,[TyVar])] -> ClassName -> Type -> [HDecl] -> HDecl
 hInstance Nothing cname t decls   = Instance (CtxtTuple []) cname t decls
-hInstance (Just ls) cname t decls = 
+hInstance (Just ls) cname t decls =
    Instance (CtxtTuple (map (uncurry (\ x y -> CtxtClass x (map (TyVar False) y))) ls)) cname t decls
 
 hClass :: Context -> ClassName -> [TyVar] -> [HDecl] -> HDecl
-hClass ctxt nm tvs ds = Class ctxt nm tvs ds 
+hClass ctxt nm tvs ds = Class ctxt nm tvs ds
 
 --unparameterised type synonym.
 tySyn :: Name -> [Name] -> Type  -> HDecl
@@ -673,15 +678,15 @@ tySyn dname tvs ty = TyD (TypeSyn dname tvs ty)
 -- (Foo T1 T2 T3) ==> (Foo a1 a2 a3)
 -- (Foo {f1::T1,f2::T2}) ==> (Foo f1 f2)
 conDeclToCon :: ConDecl -> Expr
-conDeclToCon (ConDecl nm args)   = 
+conDeclToCon (ConDecl nm args)   =
   dataCon (mkConName nm) (zipWith (\ _ a -> var ('a':show a)) args [(1::Int)..])
-conDeclToCon (RecDecl nm fields) = 
+conDeclToCon (RecDecl nm fields) =
   dataCon (mkConName nm) (map (\ (f,_) -> var f) fields)
 
 conDeclToPat :: ConDecl -> Pat
-conDeclToPat (ConDecl nm args)   = 
+conDeclToPat (ConDecl nm args)   =
   conPat (mkConName nm) (zipWith (\ _ a -> patVar ('a':show a)) args [(1::Int)..])
-conDeclToPat (RecDecl nm fields) = 
+conDeclToPat (RecDecl nm fields) =
   conPat (mkConName nm) (map (\ (f,_) -> patVar f) fields)
 
 -- prelude/Type.lhs rip-off
@@ -726,27 +731,27 @@ mkTypeSig nm pts rty = genTypeSig nm ctxt (foldr funTy rty' pts')
  where
    (rty':pts', ctxt) = generaliseTys (rty:pts)
 
-funDef :: String -> [Pat] -> Expr -> HDecl 
+funDef :: String -> [Pat] -> Expr -> HDecl
 funDef nm pats rhs = ValDecl (mkVarName nm) pats [GExpr [] rhs]
 
 valDef :: String -> Expr -> HDecl
 valDef nm rhs = ValDecl (mkVarName nm) [] [GExpr [] rhs]
 
-methodDef :: QualName -> [Pat] -> Expr -> HDecl 
+methodDef :: QualName -> [Pat] -> Expr -> HDecl
 methodDef qnm pats rhs = ValDecl qnm pats [GExpr [] rhs]
 
 guardedFunDef :: String -> [Pat] -> [(Expr,Expr)] -> HDecl
 guardedFunDef nm pats grhs = ValDecl (mkVarName nm) pats (map (\ (g,e) -> GExpr [g] e) grhs)
 
 prim :: CallConv -> LocSpec -> Name -> Type -> Bool -> [(Bool,String)] -> (Bool,String) -> HDecl
-prim cc ls nm ty need_wrapper c_args c_res 
+prim cc ls nm ty need_wrapper c_args c_res
   = Primitive True cc ls nm ty need_wrapper c_args c_res
 
 extLabel :: Name -> Name -> Type -> HDecl
 extLabel cname hname t = ExtLabel cname hname t
 
 primcst :: CallConv -> Name -> Type -> Bool -> [(Bool,String)] -> (Bool,String) -> HDecl
-primcst cc nm ty need_wrapper c_args c_res 
+primcst cc nm ty need_wrapper c_args c_res
   = PrimCast cc nm ty need_wrapper c_args c_res
 
 fexport :: CallConv -> Maybe Name -> Name -> Type -> HDecl
@@ -1032,28 +1037,28 @@ mkIntTy sz isSigned
 	  | optIntIsInt -> tyInt
 	  | otherwise   -> tyInt32
 
-	 LongLong 
+	 LongLong
 	    | optLongLongIsInteger -> tyInteger
 	    | otherwise            -> tyInt64
   | otherwise =
-      case sz of 
+      case sz of
          Short    -> tyWord16
 	 Long     -> tyWord32
 	 Natural
 	  | optIntIsInt -> tyWord
 	  | otherwise   -> tyWord32
-	 LongLong 
+	 LongLong
 	  | optLongLongIsInteger -> tyInteger
 	  | otherwise		 -> tyWord64
 \end{code}
 
 
-Mapping for floats and chars       
+Mapping for floats and chars
 
 \begin{code}
 mkFloatTy :: Size -> Type
 mkFloatTy sz =
-  case sz of 
+  case sz of
     Short    -> tyFloat
     Long     -> tyDouble
     LongLong -> tyLongDouble
@@ -1080,10 +1085,10 @@ mkTySig :: [Type] -> Type -> String
 mkTySig ps res = concat (intersperse "-" ls)
  where
    ls = map toSig (ps ++ [res])
-   toSig (TyCon tc) = 
+   toSig (TyCon tc) =
       case qName tc of
-        'I':'n':'t':xs -> 'I':xs 
-        'W':'o':'r':'d':xs -> 'W':xs 
+        'I':'n':'t':xs -> 'I':xs
+        'W':'o':'r':'d':xs -> 'W':xs
 	v -> v
    toSig (TyVar _ tv) = qName tv
    toSig (TyApply tc@TyCon{} ts) = concatMap toSig (tc:ts)

@@ -8,7 +8,7 @@
 The marshalling of an IDL method
 
 \begin{code}
-module MarshallMethod 
+module MarshallMethod
 	( cgMethod
 	, cgProperty
 
@@ -33,12 +33,12 @@ import Attribute
 import Env	 ( lookupEnv, replaceElt )
 import Opts      ( optKeepHRESULT, optUseDispIDs,
 		   optCoalesceIsomorphicMethods, optPrefixIfaceName,
-		   optSubtypedInterfacePointers, 
+		   optSubtypedInterfacePointers,
 		   optHaskellToC, optIgnoreHiddenMeths, optIgnoreRestrictedMeths,
 		   optGenDefs, optExplicitIPointer, optHugs, optDualVtbl,
 		   optLongLongIsInteger, optCorba, optNoShareFIDs, optCom
 		 )
-import CoreIDL
+import CoreIDL hiding ( enumName )
 import CoreUtils ( DependInfo, DepVal(..),
 		   findParamTy, findParam, isSimpleTy, addrTy,
 		   mkHaskellVarName, mkHaskellTyConName, mkIfaceTypeName,
@@ -56,7 +56,7 @@ import MarshallType  ( marshallType
 		     , refUnmarshallType
 		     , allocPointerTo
 		     , coreToHaskellExpr
-		     , mbFreeType 
+		     , mbFreeType
 		     , szType
 		     , coerceTy
 		     , coerceToInt
@@ -74,7 +74,7 @@ import MarshallAuto
 import LibUtils ( comLib
 		, iDispatch
 		, iUnknown
-		, ioExts
+		, uPerformIO
 		, outPrefix
 		, autoLib
 		, allocBytes
@@ -93,57 +93,57 @@ import LibUtils ( comLib
 		, checkHR
 		)
 
-import Maybe  ( fromMaybe, isJust, fromJust )
-import Monad       ( when, mplus )
+import Data.Maybe ( fromMaybe, isJust, fromJust )
+import Control.Monad ( when, mplus )
 import Utils	   ( concMaybe )
 
 \end{code}
 
 \begin{code}
-cgMethod :: Id 
-	 -> CallConv 
-	 -> Result 
-	 -> [Param] 
-	 -> Maybe Int 
+cgMethod :: Id
+	 -> CallConv
+	 -> Result
+	 -> [Param]
+	 -> Maybe Int
 	 -> Maybe Name  -- name which implements the external call.
 	 -> CgM HDecl
 cgMethod i cconv result params offs mb_prim =
   -- fetch some state out of the monad and go..
- getDeclName $ \ mname -> do 
- dname     <- getDllName 
+ getDeclName $ \ mname -> do
+ dname     <- getDllName
  iface     <- getIfaceName
  objFlag   <- getInterfaceFlag
  forClient <- getClientFlag
  isIEnum   <- getIEnumFlag
  methNo    <- getMethodNumber offs
  inh       <- getIfaceInherit
- hasIso    <- 
+ hasIso    <-
     (if (not optCoalesceIsomorphicMethods)
       then return Nothing
       else isIsomorphicMethod (idOrigName i) result params)
  let
         isObj      = objFlag /= StdFFI
-        isAuto     = 
+        isAuto     =
 	   case objFlag of
 	     ComIDispatch isDual ->
  	         not isDual || (not optDualVtbl && permissibleAutoSig result params)
 	     _ -> False
-        isServer   = 
+        isServer   =
 		not forClient &&
 		not (attrs `hasAttributeWithName` "source")
 
  case hasIso of
-   Just False  -- already generated code for isomorphic method, so 
+   Just False  -- already generated code for isomorphic method, so
 	       -- don't generate code for this one.
     | optCoalesceIsomorphicMethods -> return emptyDecl
-   _ 
+   _
     | isHidden -> return emptyDecl -- ToDo: support this for binary interfaces??
     | otherwise -> do
       {- methods that are marked with call_as() are only
          used when generating proxy/stub code for remoting.
 	 We use them when in 'COM mode' too, since these methods
 	 have at times attributes that are more helpful to us.
-	 [No, afraid not - the signature of the remoting 
+	 [No, afraid not - the signature of the remoting
 	  method does not have to be isomorphic to the local
 	  method. See comment in the desugaring code.]
 
@@ -156,7 +156,7 @@ cgMethod i cconv result params offs mb_prim =
     	meth_i	    = i
         meth_nm	    = ieValue (mkHaskellVarName (idName meth_i))
 	export_decl = addExport meth_nm
-	
+
 	enum_meth_ok = isIEnum && not isServer && isIEnumOK
 
     export_decl
@@ -177,18 +177,18 @@ cgMethod i cconv result params offs mb_prim =
    attrs       = idAttributes i
 
    isHidden =
-     attrs `hasAttributeWithName` "ignore" || 
+     attrs `hasAttributeWithName` "ignore" ||
      (( optIgnoreHiddenMeths || optIgnoreRestrictedMeths ) &&
        attrs `hasAttributeWithNames` ["hidden", "restricted"])
-   
+
    helpString = helpStringComment i
 
    {-
     Some typelibs are in such a pitiful state, so we have to make
-    sure that the enum method is in a good enough shape. 
-    
+    sure that the enum method is in a good enough shape.
+
    -}
-   isIEnumOK    = 
+   isIEnumOK    =
 	case idName i of
 	_:'e':'x':'t':_ -> right_shape
 	_:'e':'m':'o':'t':'e':'N':'e':'x':'t':_ -> right_shape
@@ -197,7 +197,7 @@ cgMethod i cconv result params offs mb_prim =
      right_shape = [In,Out,Out] == map (paramMode) params
 
 
-     
+
 \end{code}
 
 The function that does the real work of generating a stub. It is
@@ -220,11 +220,11 @@ mkMethod :: Name        -- interface the method belongs to
 	 -> [Param]
 	 -> HDecl
 mkMethod iface mname inh hasIso objFlag isIEnum isServer
-	 mb_prim mb_prim_nm cconv methNo methId result params 
+	 mb_prim mb_prim_nm cconv methNo methId result params
   | isAuto     = auto_tysig `andDecl` auto_def
   | isIEnum    = enum_tysig `andDecl` enum_def
   | otherwise  = m_tysig    `andDecl` m_def
-      
+
   where
    r_ty	    = resultType result
    isObj    = objFlag /= StdFFI
@@ -256,18 +256,18 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
        {- Bad boy, go sit in the corner. -}
      case name of
 	_:'e':'x':'t':_ -> (is, funTy i_pointer_ty (io (tyList enum_elt_ty)))
-	_:'e':'m':'o':'t':'e':'N':'e':'x':'t':_ -> 
+	_:'e':'m':'o':'t':'e':'N':'e':'x':'t':_ ->
                            (is, funTy i_pointer_ty (io (tyList enum_elt_ty)))
 	_ -> (is, res_type)
 
-      
+
    enum_rhs    = funApp enum_fun args
      where
        enum_fun  = mkQVarName comLib ("enum" ++ enumName)
-       
+
 	{-
 	  When MIDL generates a typelib for the following
-	  
+
 	     [object,...]
 	     interface IA : IUnknown {
 		[local]
@@ -288,14 +288,14 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
        elt_ty    = removePtr (paramType (head results))
        sz_of     = szType elt_ty
        write_elt = refUnmarshallType stubMarshallInfo elt_ty
-       args      = 
+       args      =
 	    -- too beautiful, man..
          case name of
 	   _:'e':'x':'t':_ -> sz_of : write_elt : the_args
 	   _:'e':'m':'o':'t':'e':'N':'e':'x':'t':_ -> sz_of : write_elt : the_args
 	   _ -> the_args
 
-       the_args = 
+       the_args =
           case (map (mkHVar.paramId) meth_params) of
 	    []    -> []
 	    [x]    -> [x]
@@ -335,7 +335,7 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
 
    isPure = (idAttributes methId) `hasAttributeWithName` "pure"
 
-   meth_params = 
+   meth_params =
      case mb_prim of
        Nothing -> meth_params'
        Just _  -> prim_param:meth_params'
@@ -343,7 +343,7 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
     -- extend the param list if the 'result' parameter, so that
     -- we can use the result in dependent argument expression (
     -- e.g., [out,length_is(result)]int* f, ...
-   params_and_result 
+   params_and_result
      = params ++ [resultParam (resultType result)]
 
    (prim_params, meth_params', result_ty)
@@ -357,13 +357,13 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
 		    , real_params ++ [iptr_param]
 		    , funTy i_pointer_ty (returnType (tuple res_ty))
 		    )
-    | otherwise = 
+    | otherwise =
                   ( params
 		  , real_params
 		  , returnType (tuple res_ty)
 		  )
 
-	 
+
    i_pointer_ty
      | optSubtypedInterfacePointers && not isIsoMethod
      = tyCon (mkHaskellTyConName (mkIfaceTypeName iface)) [tyVar "a"]
@@ -386,7 +386,7 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
    isIsoMethod = fromMaybe False hasIso
 
    -- building the Haskell type of the method/function.
-   (in_tys_1, res_ty) = 
+   (in_tys_1, res_ty) =
       constrainIIDParams
 		  (paramToHaskellType par_deps isServer isAuto False)
                   (paramToHaskellType res_deps isServer isAuto True)
@@ -395,10 +395,10 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
 {-
    res_ty = map (paramToHaskellType res_deps isServer isAuto True) results
 -}
-   in_tys = 
+   in_tys =
 	     -- if the primitive method is passed in as arg, prefix it
 	     -- to the parameter list.
-           (if isJust mb_prim then 
+           (if isJust mb_prim then
 	         ((toHaskellBaseMethodTy False prim_params result):)
 	      else
 	         id) in_tys_1
@@ -420,15 +420,15 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
    meth_result = mkResult results
 
    unsafeWrap e
-      | isPure    = funApp (mkQVarName ioExts "unsafePerformIO") [e]
+      | isPure    = funApp uPerformIO [e]
       | otherwise = e
 
    m_rhs       =
-    unsafeWrap $      
+    unsafeWrap $
       runMm (Just (mkHaskellVarName (idName methId))) param_names meth_result $ do
           marshallDependents False{-not inside struct-} False{-not for server proxies-}
 	  		     par_deps (findParamTy params_and_result) -- in and in-out params
-          allocateOutParams (raw_inout_deps++raw_out_deps) 
+          allocateOutParams (raw_inout_deps++raw_out_deps)
 			    (findParam params_and_result)
 			    (removeDependees raw_inout_deps outs)
           marshallParams True{-marshall-} False isServer (removeDependents in_deps real_ins)
@@ -436,7 +436,7 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
           setupMethodCall isObj methNo iface inh result in_p_tys
 	  		  (thePrimCall isObj mname mb_prim mb_prim_nm methId result prim_params)
 	  freeInParamStorage in_deps ins
-          okResult isObj methId result 
+          okResult isObj methId result
           unmarshallOutParams isServer (removeDependers (out_deps ++ inout_deps) real_outs)
 	  when (not ignoreResult)
 	       (unmarshallResult isServer methId{idName=outPrefix++idName methId} r_ty)
@@ -445,24 +445,24 @@ mkMethod iface mname inh hasIso objFlag isIEnum isServer
           unmarshallDependents False False inout_deps (findParamTy params_and_result)
 
    (results, ignoreResult) =
-      let results' 
+      let results'
 	    | isAuto    = (outs ++ inouts)
 	    | otherwise = real_res
-      in	   
+      in
       case r_ty of
         Void -> (results', True)
-	_ 
+	_
 	  | (isHRESULT result && not optKeepHRESULT) ||
 	    ((idAttributes methId) `hasAttributeWithName` "hs_ignore_result")
 	     -> (results', True)
 	  | otherwise -> (results' ++ [res_param], isSimpleTy r_ty && not (isIfaceTy r_ty))
 
-   res_param = 
+   res_param =
       let p = mkParam (outPrefix ++ name) Out r_ty in
       p{ paramOrigType=resultOrigType result
        , paramId=(paramId p){idAttributes=idAttributes methId}
        }  -- replace attributes.
-      
+
    (real_params, par_deps)    = findParamDependents True pars
    (_, in_deps)               = findParamDependents True ins
    (real_ins, _)             = findParamDependents False ins
@@ -521,7 +521,7 @@ cgProperty i ty seti geti = do
    set_prop_rhs   = funApp setProp [ prop_id
 				   , hList [funApply (marshallVariant "in" ty) [var "prop"]]
 			           ]
-   prop_id 
+   prop_id
     | optUseDispIDs && has_dispid = integerLit d_id
     | otherwise			  = stringLit (idName i)
 
@@ -547,33 +547,31 @@ cgProperty i ty seti geti = do
 
 \begin{code}
 marshallParams :: Bool -> Bool -> Bool -> [Param] -> Mm ()
-marshallParams marsh don'tFree isServer ps = do
-   sequence (map marshallParam ps)
-   return ()
+marshallParams marsh don'tFree isServer ps = sequence_ (map marshallParam ps)
   where
    marshallParam p
     |  isVoidTy ty
-    || isSimpleTy ty 
+    || isSimpleTy ty
     || keepValueAsPointer ty -- keep pointers to complex types
 			     -- external.
     = return ()
 
-    | otherwise  = 
+    | otherwise  =
 	let  nm   = idName (paramId p)
 	     nm'  = "in__" ++ nm
 	     pats
 	      | isIntegerTy ty = tuplePat [patVar (nm ++ "_hi"), patVar (nm ++ "_lo")]
 	      | otherwise      = patVar nm
-	     pats' 
+	     pats'
 	      | isIntegerTy ty = tuplePat [patVar (nm' ++ "_hi"), patVar (nm' ++ "_lo")]
 	      | otherwise      = patVar nm'
 	in
-	  -- The hack to prefix the value with res__ in the proxy/server case 
+	  -- The hack to prefix the value with res__ in the proxy/server case
 	  -- requires that the same thing is done in MarshallServ.marshallMethod.meth_result
 	  --
-	  -- Ditto for in__ prefixing the result of unmarshaling proxy args; 
+	  -- Ditto for in__ prefixing the result of unmarshaling proxy args;
 	  -- MarshallServ.marshallMethod needs to be in on this (less-than-tasteful) game.
-	if isServer 
+	if isServer
 	 then if marsh
 	       then let res__nm = var ("res__" ++ nm) in
 	            if (paramMode p == InOut)
@@ -597,15 +595,13 @@ marshallParams marsh don'tFree isServer ps = do
 
 
 unmarshallOutParams :: Bool -> [Param] -> Mm ()
-unmarshallOutParams isServer ls = do
-   sequence (map (unmarshallOutParam isServer) ls)
-   return ()
+unmarshallOutParams isServer ls = sequence_ (map (unmarshallOutParam isServer) ls)
 
 unmarshallOutParam :: Bool -> Param -> Mm ()
 unmarshallOutParam isServer p
- | isVoidTy ty           || 
+ | isVoidTy ty           ||
    keepValueAsPointer ty ||
-   isPtrPointerTy ty 
+   isPtrPointerTy ty
 
 {- doesn't make sense.
    (optHaskellToC   &&
@@ -627,16 +623,14 @@ unmarshallOutParam isServer p
 
 unmarshallResult :: Bool -> Id -> Type -> Mm ()
 unmarshallResult _ _ Void  = return ()
-unmarshallResult isServer i   ty  = 
+unmarshallResult isServer i   ty  =
    addCode (bind (funApply (unmarshallType stubMarshallInfo{doFree= not don'tFree, forProxy=isServer} ty) [nm]) nm)
    where
      nm		= var (idName i)
      don'tFree  = (idAttributes i) `hasAttributeWithName` "nofree"
 
 allocateOutParams :: DependInfo -> (Name -> Param) -> [Param] -> Mm ()
-allocateOutParams deps lookup_param params = do
-  sequence (map allocate params)
-  return ()
+allocateOutParams deps lookup_param params = sequence_ (map allocate params)
  where
    allocate p
      | isVoidTy ty = return ()
@@ -650,7 +644,7 @@ allocateOutParams deps lookup_param params = do
      allocOut =
        case (lookupDepender deps i) of
          Nothing -> allocPointerTo ty
-	 Just ls -> 
+	 Just ls ->
 	 	let
 		 (_,_,sz_allocs) = computeArrayConstraints False{-not unmarshaling-} ls
 		in
@@ -659,22 +653,22 @@ allocateOutParams deps lookup_param params = do
                  --        [out]int*    -> allocBytes s[Int32]  (returning pointer to it.)
 		 --        [out]int**   -> allocBytes s[t*]
 		 --
-		 -- Note: if the [out] param is a constructed type, we don't need to 
+		 -- Note: if the [out] param is a constructed type, we don't need to
 		 -- to allocate space for the objects pointed to by any embedded pointers
 		 -- (that's the task of the callee.)
 		 --  [ No need to plug the pointers with NULLs either, AFAIK. -- sof 5/98 ]
-		 --		    
-		 -- 
+		 --
+		 --
 		 -- ToDo: assert that the ty is of a pointer or array nature.
 		case sz_allocs of
 		  []			       -> allocPointerTo ty
 		  (DepNone:_)		       -> allocPointerTo ty
 		    -- The next case is wrong, even if we've got
 		    -- [size_is(*e)] pinned onto an [out] parameter,
-		    -- we'll need to allocate enough space to hold 
+		    -- we'll need to allocate enough space to hold
 		    -- (*e) elements.
 		  --(DepVal _  (Unary Deref _):_) -> allocPointerTo addrTy
-		  (DepVal Nothing  e:_) -> 
+		  (DepVal Nothing  e:_) ->
 		  	case ty' of
 			  Pointer _ _ Void -> funApp allocBytes [coerceToInt e]
 			  _ ->
@@ -683,13 +677,13 @@ allocateOutParams deps lookup_param params = do
 				           (funApp fromIntegralName [szType ty'])
 					   (coerceToInt e)
 			           ]
-		  (DepVal (Just v) e:_) -> 
+		  (DepVal (Just v) e:_) ->
 			    let
 			     coerce = varName fromIntegralName
-			     h_e    = coreToHaskellExpr e 
+			     h_e    = coreToHaskellExpr e
 			    in
 			    case paramType (lookup_param v) of
-			      Pointer Unique _ _ -> 
+			      Pointer Unique _ _ ->
 					funApp allocBytes
 						 [binOp Mul
 						    (funApp fromIntegralName [szType ty'])
@@ -697,7 +691,7 @@ allocateOutParams deps lookup_param params = do
 						            [ var "0"
 						            , funApp mapName [coerce, h_e]
 						            ])]
-			      _ -> 
+			      _ ->
 				let e' = coerceToInt e in
 				case ty' of
 				   Pointer _ _ Void -> funApp allocBytes [e']
@@ -706,7 +700,7 @@ allocateOutParams deps lookup_param params = do
 						       (funApp fromIntegralName [szType ty'])
 						       e'
 					       ]
-						      
+
 
 -- parameter list has all (in)out parameters plus function result.
 mkResult :: [Param] -> Haskell.Expr
@@ -742,7 +736,7 @@ primDecl isObj isServer trySharing f dname mname cc res params
      let sig = mkTySig param_h_tys res_hs_ty
      mb_res <- lookupDynStub sig
      case mb_res of
-       Just (True,r) | not optNoShareFIDs -> 
+       Just (True,r) | not optNoShareFIDs ->
        	   return (False, emptyDecl, Just r)
        _ -> do
            when (not optNoShareFIDs) (addDynStub server_nm sig True)
@@ -765,17 +759,17 @@ primDecl isObj isServer trySharing f dname mname cc res params
   nm           = idName f
   orig_nm      = idOrigName f
   attrs        = idAttributes f
-  the_dname    = 
+  the_dname    =
     case (findAttribute "dllname" attrs) of
      Just (Attribute _ [ParamLit (StringLit s)]) -> s
      _ -> dname
-  
+
   loc_spec     =
      case concMaybe (findAttribute "call_as" attrs)
                     (findAttribute "entry" attrs)   of
        Nothing					   -> (the_dname, Nothing, orig_nm, Nothing)
        Just (Attribute _ [ParamVar v])             -> (the_dname, Nothing, v, Nothing)
-       Just (Attribute _ [ParamLit (IntegerLit (ILit _ x))]) -> 
+       Just (Attribute _ [ParamLit (IntegerLit (ILit _ x))]) ->
 	    let
 	     stub_nm     = mkPrimitiveName (show x)
 	    in
@@ -788,7 +782,7 @@ primDecl isObj isServer trySharing f dname mname cc res params
      two primitive decls called "prim_foo", the first that's loaded, is used
      throughout. Better not let that happen here, so we prepend the module
      name.
-     
+
      [I've submitted a fix for this for Hugs98; hopefully it will be included..]
 
      8/99 - add module prefix on the non-Hugs side too ; otherwise we run into trouble
@@ -796,8 +790,8 @@ primDecl isObj isServer trySharing f dname mname cc res params
    -}
   prim_nm = mkPrimitiveName (mname ++ '_':nm)
 
-  needs_wrapper = 
-    has_structs || 
+  needs_wrapper =
+    has_structs ||
     case loc_spec of
       (_, Just _, _, _) -> True
       _		        -> False
@@ -810,12 +804,12 @@ primDecl isObj isServer trySharing f dname mname cc res params
 
   sz
    | not optGenDefs = Nothing
-   | otherwise      = 
+   | otherwise      =
      case cc of
-       Stdcall -> 
+       Stdcall ->
          let stuff    = map ((sizeAndAlignModulus Nothing).paramType) params
 	     p_sz     = foldl (al_param) 0 stuff
-	     al_param siz (sz_t,_) = 
+	     al_param siz (sz_t,_) =
 		let --sz' = align sz modu  -- hmm
 		    sz_t'
 		      | sz_t < lONG_SIZE = lONG_SIZE -- everything that's less than word size
@@ -825,11 +819,11 @@ primDecl isObj isServer trySharing f dname mname cc res params
 	 in
 	 Just p_sz
        _       -> Nothing
-   
+
 
   server_nm    = mkPrimExportName nm
 
-  server_ty    = 
+  server_ty    =
      case generaliseTys [prim_ty] of
        ([t], mb) -> mbCtxtTyApp mb (funTy t (io tyAddr))
 
@@ -841,7 +835,7 @@ primDecl isObj isServer trySharing f dname mname cc res params
   -}
   param_hs_tys
    | isServer  = tyPtr (uniqueTyVar "a") : param_h_tys
-   | isObj     = 
+   | isObj     =
        if optCom || attrs `hasAttributeWithName` "finaliser" then
           tyAddr : tyAddr : param_h_tys
        else
@@ -868,13 +862,14 @@ primDecl isObj isServer trySharing f dname mname cc res params
   res_hs_ty = toHaskellBaseTy True res
 
 
+toParamPrimTy :: Bool -> Param -> Haskell.Type
 toParamPrimTy isServer p
   | pattrs `hasAttributeWithName` "foreign" = tyForeignObj
   | otherwise = toHaskellBaseTy (isResult || isServer) (paramType p)
   where
     pattrs   = idAttributes (paramId p)
     mode     = paramMode p
-    isResult = mode == Out   || 
+    isResult = mode == Out   ||
 --	       mode == InOut ||
  	       paramDependent p
 
@@ -887,20 +882,20 @@ actual call. @setMethodCall@ does this, dereferencing the i-pointer
 to @methPtr@.
 
 \begin{code}
-setupMethodCall :: Bool 
-		-> Int 
-		-> String 
+setupMethodCall :: Bool
+		-> Int
+		-> String
 		-> [QualName]
-	        -> Result 
+	        -> Result
 		-> [(Name, Haskell.Type)]
-		-> (Haskell.Expr, Maybe Haskell.Expr) 
+		-> (Haskell.Expr, Maybe Haskell.Expr)
 		-> Mm ()
 setupMethodCall isObj methNo ifaceName inh result param_tys methCall
  | not isObj	     = addCode ( binder mCall )
  | isHRESULT result  = addCode (
       binder
          (funApp
-	     invokeAndCheck 
+	     invokeAndCheck
 	         [ lam [varPat methPtr, varPat iptr] mCall
 		 , offset
 		 , iptr
@@ -910,7 +905,7 @@ setupMethodCall isObj methNo ifaceName inh result param_tys methCall
     (mCall0, mbRes) = methCall
     mCall = unravel mCall0
 
-    invokeMethod 
+    invokeMethod
       | optHaskellToC || optCorba
       = 		funApp primInvokeIt
 			       [ lam [varPat methPtr, varPat iptr] mCall
@@ -923,19 +918,19 @@ setupMethodCall isObj methNo ifaceName inh result param_tys methCall
 			       , iptr
 			       ]
 
-    m_iptr = 
+    m_iptr =
        case inh of
          []    -> prefix marshallPrefix (mkQVarName Nothing ifaceName)
 	 (x:_) -> prefix marshallPrefix x
 
      -- unwrap the ForeignPtrs.
-    unravel cont 
+    unravel cont
       = foldr (\ (f,_) acc -> funApp withForeignPtrName [var f, lam  [patVar f] acc])
     	      cont
 	      fs
       where fs = filter (isFOTy.snd) param_tys
 
-    binder = 
+    binder =
       case mbRes of
         Nothing -> bind_
 	Just v  -> (\ m n -> bind m v n) -- fp; dontcha just love it!
@@ -948,7 +943,7 @@ setupMethodCall isObj methNo ifaceName inh result param_tys methCall
 
 Call the primitive. Assume that all arguments have been
 marshalled into an appropriate form and that their marshalled
-representations are in scope as the names given in the parameter list. 
+representations are in scope as the names given in the parameter list.
 
 \begin{code}
 thePrimCall :: Bool
@@ -968,7 +963,7 @@ thePrimCall isComMeth mname mb_prim mb_prim_nm f res params
    r_res     = var (outPrefix ++ idName f)
    args      = foldr mkArg [] params
 
-   mkArg p acc = 
+   mkArg p acc =
      case paramType p of
        Integer LongLong _ | optHugs && optLongLongIsInteger
 			  -> var (nm ++ "_lo") : var (nm ++ "_hi") : acc
@@ -990,7 +985,7 @@ thePrimCall isComMeth mname mb_prim mb_prim_nm f res params
  method. The reason for this is that the HRESULT
  return code have already been checked for by
  special object method call wrappers.
- 
+
  If the result has the attribute [usesgetlasterror],
  then in the event of error, we fish out the return
  code and msg by calling GetLastError() - Win32 specific,
@@ -1000,7 +995,7 @@ thePrimCall isComMeth mname mb_prim mb_prim_nm f res params
 -}
 okResult :: Bool -> Id -> Result -> Mm ()
 okResult isObj f res
-  | attrs `hasAttributeWithName` "error_handler" = 
+  | attrs `hasAttributeWithName` "error_handler" =
       case findAttribute "error_handler" attrs of
         Just (Attribute _ [ParamLit (StringLit s)]) ->
 	   addCode (bind_ (funApp (toQualName s) [r_res]))
@@ -1009,7 +1004,7 @@ okResult isObj f res
   | attrs `hasAttributeWithName` "usesgetlasterror" =
 	addCode (bind_ (funApp check2HR [r_res]))
   | not (isHRESULT res) = return ()
-  | otherwise = 
+  | otherwise =
 	addCode (bind_ (funApp checkHR [r_res]))
  where
   r_res = var (outPrefix ++ idName f)
@@ -1033,9 +1028,7 @@ in one fell swoop.
 
 \begin{code}
 freeInParamStorage :: DependInfo -> [Param] -> Mm ()
-freeInParamStorage dep_info ps = do
-   sequence (map freeParam ps)
-   return ()
+freeInParamStorage dep_info ps = sequence_ (map freeParam ps)
   where
    freeParam p
         -- special fall-thru case for [sequence, length_is()] - sigh.
@@ -1056,7 +1049,7 @@ freeInParamStorage dep_info ps = do
 \begin{code}
 isIsomorphicMethod :: String -> Result -> [Param] -> CgM (Maybe Bool)
 isIsomorphicMethod nm res params = do
-  env <- getIsoEnv 
+  env <- getIsoEnv
   case lookupEnv env nm of
     Nothing   -> return Nothing
     Just alts ->
@@ -1069,7 +1062,7 @@ isIsomorphicMethod nm res params = do
   len_params = length params
 
   match (_,r,ps) =
-    resultType r == resultType res && 
+    resultType r == resultType res &&
     len_params == length ps		   &&
     all (\ (p1,p2) -> paramMode p1 == paramMode p2 &&
 		      paramType p1 == paramType p2)  -- ToDo: check attributes too.

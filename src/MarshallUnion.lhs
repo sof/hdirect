@@ -23,7 +23,7 @@ import MarshallCore   ( toHaskellBaseTy )
 import CoreUtils
 import LibUtils
 import Utils	      ( trace, traceIf )
-import Char	      ( ord )
+import Data.Char      ( ord )
 import Opts	      ( optCom )
 
 \end{code}
@@ -33,7 +33,7 @@ import Opts	      ( optCom )
 <p>
 
 \begin{code}
-marshallUnion :: Name 
+marshallUnion :: Name
 	      -> Either (Id,Type) Type
 	      -> Bool
 	      -> [Switch]
@@ -41,7 +41,7 @@ marshallUnion :: Name
 	      -> CgM HDecl
 marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
  | null switches = trace ("Empty union: "++ tdef_name) $ return emptyDecl
- | otherwise     = do 
+ | otherwise     = do
     ds <- mapM exportDecl decl_list
     return (andDecls ds)
    where
@@ -54,7 +54,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
      , ( f_name, f_tysig `andDecl`  f_def)
      ]
 
-    switches = moveEmptiesBackwards [] switches_raw 
+    switches = moveEmptiesBackwards [] switches_raw
       where
        moveEmptiesBackwards acc [] = acc
        moveEmptiesBackwards acc (s@(SwitchEmpty _):ss) = moveEmptiesBackwards (s:acc) ss
@@ -66,7 +66,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
       case tag_info of
         Left  _ -> True
 	Right _ -> False
-    
+
     (un_tag, tag_ty) =
       case tag_info of
         Left (tg,t) -> (tg,t)
@@ -77,7 +77,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
     un_tag_ty = UnionNon un_tag switches
 
     expanded_ty_fields
-      | isEncapsulated = 
+      | isEncapsulated =
          [ Field un_tag    tag_ty    tag_ty Nothing Nothing -- the tags are ignored, so it
 	 , Field un_tag un_tag_ty un_tag_ty Nothing Nothing -- doesn't matter what's used.
 	 ]
@@ -85,7 +85,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
          [ Field un_tag un_tag_ty un_tag_ty Nothing Nothing -- doesn't matter what's used.
 	 ]
 
-    ( (st_size,_), 
+    ( (st_size,_),
       (_: ~(un_off:_))) = computeStructSizeOffsets mb_pack expanded_ty_fields
 
     v		 = var "v"
@@ -98,7 +98,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
     addRef_fields = isFinalisedType True  (Union undefined undefined undefined undefined switches)
     final_fields  = isFinalisedType False (Union undefined undefined undefined undefined switches)
 
-    union_ptr 
+    union_ptr
       | isEncapsulated = addPtr ptr (lit (iLit un_off))
       | otherwise      = ptr_cast
 
@@ -117,7 +117,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
     u_rhs    = funApp unmarshUnion [stringLit u_name]
 
     w_name   = qName (prefix marshallRefPrefix name)
-    w_tysig 
+    w_tysig
      | isEncapsulated = typeSig w_name (funTys (mk_w_type [tyPtr b_ty, t_ty]) io_unit)
      | otherwise      = typeSig w_name (funTys (mk_w_type [funTy b_tag_ty io_unit, tyPtr b_ty, t_ty]) io_unit)
 
@@ -125,30 +125,30 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
      | optCom && addRef_fields = (tyBool:)
      | otherwise	       = id
 
-    w_def    
+    w_def
      | isEncapsulated = funDef w_name (mk_w_pats [varPat ptr, varPat v]) w_rhs
      | otherwise      = funDef w_name (mk_w_pats [varPat write_tag, varPat ptr, varPat v]) w_rhs
-     
+
     mk_w_pats
      | optCom && addRef_fields = ((patVar "addRefMe__") :)
      | otherwise	       = id
 
     w_rhs    = hCase v w_alts
     w_alts   = concatMap mk_w_alt switches
-       
+
     mk_w_alt (Switch i labs ty _) =
-	let 
+	let
 	 elt_nm = idName i
 	 elt    = var elt_nm
-	 the_tag = 
+	 the_tag =
 	   case filter (/=Default) labs of
 	     (Case e : _ ) -> coreToHaskellExpr e
-	     []         -> 
+	     []         ->
 		traceIf (not isCUnion && null labs)
-				   ("Warning: union member `" ++ elt_nm ++ "' of typedef `" ++ 
+				   ("Warning: union member `" ++ elt_nm ++ "' of typedef `" ++
 				     tdef_name ++ "' doesn't have an associated tag") $
 	        intLit ((-1)::Int) -- default case, not right.
-  
+
              _ -> error "MarshallUnion.marshallUnion.mk_w_alt: unexpected, something's badly wrong"
 	in
 	[ alt (conPat (mkConName (mkHaskellTyConName elt_nm)) [varPat elt]) $
@@ -164,9 +164,9 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
 	     -- the type and not any different from values of that type.)
 	     --
 	     -- However, as a first approximation, this will have to do..
-	     -- 
+	     --
 	     -- ToDo: revisit this issue (hopefully before users are bitten by this!)
-	     -- 
+	     --
 	    let un_ptr
 	         | isEncapsulated = addPtr ptr (lit (iLit un_off))
 		 | otherwise	  = ptr_cast
@@ -176,12 +176,12 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
 
      -- not much we can do but match the anonymous constructor, i.e.,
      --		Foo -> return ()
-    mk_w_alt (SwitchEmpty mb_labs) = 
+    mk_w_alt (SwitchEmpty mb_labs) =
        case mb_labs of
          Nothing -> [alt (conPat (mkConName (tdef_name ++ "_Anon")) []) (ret unit)]
 	 Just ls -> map toAlt ls
 	  where
-	   toAlt (Default, tg_nm) = 
+	   toAlt (Default, tg_nm) =
 	        alt (conPat (mkConName (tdef_name ++ tg_nm)) [])
 		    (ret unit)
 	   toAlt (Case e, tg_nm)  =
@@ -192,7 +192,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
 		      )
 
     r_name   = qName (prefix unmarshallRefPrefix name)
-    r_tysig  
+    r_tysig
       | isEncapsulated = typeSig r_name (funTys (mk_r_type [tyPtr b_ty]) (io t_ty))
       | otherwise      = typeSig r_name (funTys (mk_r_type [io b_tag_ty, tyPtr b_ty]) (io t_ty))
 
@@ -200,16 +200,16 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
       | final_fields   = (tyBool:)
       | otherwise      = id
 
-    r_def    
+    r_def
       | isEncapsulated = funDef r_name (mk_r_pats [varPat ptr]) r_rhs
       | otherwise      = funDef r_name (mk_r_pats [varPat read_tag, varPat ptr]) r_rhs
-    
+
     mk_r_pats
       | final_fields   = (patVar "finaliseMe__":)
       | otherwise      = id
 
-    r_rhs   = 
-      mkAlts 
+    r_rhs   =
+      mkAlts
           r_name
           (if isEncapsulated then
 	     funApply (refUnmarshallType stubMarshallInfo tag_ty) [ptr_cast]
@@ -218,7 +218,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
 	  tag
 	  (concat $ map mkGuard switches)
 
-    mkAlts nm _ _ [] = 
+    mkAlts nm _ _ [] =
         trace ("Warning: `" ++ nm ++"': no tag info to interpret. (generating bogus stub - please fix it or the original IDL spec.)") $
 	funApp prelError [stringLit (nm ++": I am the " ++ thing)]
        where
@@ -227,31 +227,31 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
         thing
 	 | odd sum_nm = "walrus."
 	 | otherwise  = "eggman."
-	 
+
     mkAlts _ rtag tg alts = bind rtag tg (hCase tag alts)
 
     mkGuard (Switch i labs ty _) = map mkSwitch labs
      where
-      mkSwitch Default  = 
+      mkSwitch Default  =
 	 alt wildPat
 	     (bind (funApply (refUnmarshallType structMarshallInfo ty) [union_ptr]) v $
 	      ret  (dataCon (mkConName (mkHaskellTyConName (idName i))) [v]))
 
-      mkSwitch (Case e) = 
+      mkSwitch (Case e) =
 	let h_expr = coreToHaskellExpr e in
 	case (exprToPat h_expr) of
-	  Just simple_pat -> 
+	  Just simple_pat ->
 		alt simple_pat
 		    (bind (funApply (refUnmarshallType structMarshallInfo ty) [union_ptr]) v $
 		     ret  (dataCon (mkConName (mkHaskellTyConName (idName i))) [v]))
 	   -- either totally bogus or a non-simple expression
-	   -- Emit a 
-	  Nothing -> 
+	   -- Emit a
+	  Nothing ->
 		genAlt (patVar "x") (binOp Eq (var "x") h_expr)
 		    (bind (funApply (refUnmarshallType structMarshallInfo ty) [union_ptr]) v $
 		     ret  (dataCon (mkConName (mkHaskellTyConName (idName i))) [v]))
-		       
-		    
+
+
     mkGuard (SwitchEmpty mb_labs) =
        case mb_labs of
          Nothing -> [alt wildPat $
@@ -272,14 +272,14 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
      -- version?
 
     f_name   = qName (prefix freePrefix name)
-    f_tysig  
+    f_tysig
        | isEncapsulated = typeSig f_name (funTy (tyPtr b_ty) (io_unit))
        | otherwise      = typeSig f_name (funTys [b_tag_ty, tyPtr b_ty] (io_unit))
 
-    f_def    
+    f_def
        | isEncapsulated = funDef f_name [varPat ptr] f_rhs
        | otherwise      = funDef f_name [varPat read_tag, varPat ptr] f_rhs
-    f_rhs    = 
+    f_rhs    =
        mkAlts
           f_name
           (if isEncapsulated then
@@ -296,7 +296,7 @@ marshallUnion tdef_name tag_info isCUnion switches_raw mb_pack
 	  | otherwise                  = funApply (freeType orig_ty) [union_ptr]
 
          mkSwitch Default  = alt wildPat free_it
-         mkSwitch (Case e) = 
+         mkSwitch (Case e) =
 	    let h_expr = coreToHaskellExpr e in
 	    case (exprToPat h_expr) of
 	      Just pat -> alt pat free_it

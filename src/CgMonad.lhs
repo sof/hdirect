@@ -14,7 +14,7 @@ the abstract Haskell code that's being generated:
     - etc.
 
 \begin{code}
-module CgMonad 
+module CgMonad
 	(
 	  CgM
         , IfaceType(..)
@@ -29,7 +29,7 @@ module CgMonad
 	, getDeclName		-- :: (String -> CgM a) -> CgM a
 	, withDeclName	        -- :: String -> CgM a -> CgM a
 	, withIfaceDeclName     -- :: String -> CgM a -> CgM a
-	
+
 	, needStubs		-- :: Bool -> CgM ()
 	, hasPrims		-- :: CgM ()
 
@@ -44,23 +44,23 @@ module CgMonad
 
 	, getIfaceName		-- :: CgM String
 	, setIfaceName		-- :: String -> CgM a -> CgM a
-	
+
 	, inDispInterface       -- :: CgM a -> CgM a
 	, isInDispInterface     -- :: CgM Bool
-	
+
 	, setIfaceAttributes    -- :: [Attribute] -> CgM a -> CgM a
 	, getIfaceAttributes    -- :: CgM [Attribute]
-	
+
 	, getIfaceInherit	-- :: CgM [QualName]
 	, withIfaceInherit	-- :: [QualNam] -> CgM a -> CgM a
-	
+
         , IsoEnv
 	, getIsoEnv		-- :: CgM IsoEnv
 	, setIsoEnv		-- :: IsoEnv -> CgM ()
-	
+
 	, getIEnumFlag		-- :: CgM Bool
 	, setIEnumFlag		-- :: Bool -> CgM a -> CgM a
-	
+
 	, addDynStub            -- :: String -> String -> CgM ()
 	, lookupDynStub 	-- :: String -> Maybe String
 
@@ -70,9 +70,9 @@ module CgMonad
 	, exportDecl		-- :: (String, HDecl) -> CgM HDecl
 
 	, addExplicitImports    -- :: [(Bool,String)] -> CgM ()
-	
+
 	, hoistInClass		-- :: String -> (String -> CgM a) -> CgM a
-	
+
 	, getMethodNumber	-- :: Maybe Int -> CgM Int
 	, setMethodNumber	-- :: Int -> CgM ()
 	, incMethodNumber	-- :: CgM ()
@@ -83,7 +83,7 @@ import Env
 import AbstractH
 import CoreIDL    ( Result, Param, Id, Attribute )
 import Opts	  ( optServer, optOneModulePerInterface )
-import Maybe	  ( fromMaybe )
+import Data.Maybe ( fromMaybe )
 import BasicTypes ( QualName )
 
 \end{code}
@@ -93,7 +93,7 @@ Information is carried both down and along:
 \begin{code}
 newtype CgM a = CgM ( CgDown -> CgState -> (a, CgState) )
 
-data CgDown 
+data CgDown
  = CgDown {
       if_ty     :: IfaceType,
       if_client :: Bool,   -- True => generating client stubs.
@@ -116,7 +116,7 @@ data IfaceType
 
 type IsoEnv = Env String [(Bool, Result, [Param])]
 
-data CgState = 
+data CgState =
    CgState {
      exp_list   :: [(HIEEntity, Bool, Maybe String)],  -- export list
      imp_list   :: [(String,Bool,[HIEEntity])],
@@ -136,8 +136,8 @@ runCgM :: Env String [(Result, [Param])]
 	  , Bool
 	  , Bool
 	  )
-runCgM isoEnv ifaceEnv (CgM act) = 
-  case (act (CgDown iface_flg is_client is_source is_ienum 
+runCgM isoEnv ifaceEnv (CgM act) =
+  case (act (CgDown iface_flg is_client is_source is_ienum
   		    is_disp "" "" "" [] [] ifaceEnv)
             (CgState [] [] newEnv iso_env' 0 False False)) of
     (v,CgState expo imps _ _ _ flg1 flg2) -> (v, reverse expo, imps, flg1, flg2)
@@ -198,11 +198,11 @@ withIfaceInherit :: [QualName] -> CgM a -> CgM a
 withIfaceInherit ls (CgM a) =
   CgM (\ env st -> a (env{if_inh=ls}) st)
 
-setIfaceName :: String -> CgM a -> CgM a  
+setIfaceName :: String -> CgM a -> CgM a
 setIfaceName iface (CgM a) =
   CgM (\ env st -> a (env{if_nm=iface}) st)
 
-setIfaceAttributes :: [Attribute] -> CgM a -> CgM a  
+setIfaceAttributes :: [Attribute] -> CgM a -> CgM a
 setIfaceAttributes as (CgM a) = CgM (\ env st -> a (env{if_attrs=as}) st)
 
 getIsoEnv :: CgM IsoEnv
@@ -229,10 +229,10 @@ addExport nm = CgM ( \ _ st -> ((), st{exp_list=(nm, False, Nothing):exp_list st
 addVitalExport :: HIEEntity -> CgM ()
 addVitalExport nm = CgM ( \ _ st -> ((), st{exp_list=(nm, True, Nothing):exp_list st}))
 
-hoistInClass :: String -> (Maybe Id -> CgM a) -> CgM a 
-hoistInClass nm cont =  
-  CgM (\ env st -> 
-         let 
+hoistInClass :: String -> (Maybe Id -> CgM a) -> CgM a
+hoistInClass nm cont =
+  CgM (\ env st ->
+         let
 	   (CgM a) = cont (fromMaybe Nothing (lookupEnv (iface_env env) nm))
 	 in
 	 a env st)
@@ -250,7 +250,7 @@ exportDecl (nm,d) = do
    return d
 
 -- 'convenient' interface that combines the result of
--- looking up whether 
+-- looking up whether
 getMethodNumber :: Maybe Int -> CgM Int
 getMethodNumber (Just i) = return i
 getMethodNumber Nothing  = CgM (\ _ st -> (meth_no st, st))
@@ -288,8 +288,8 @@ lookupDynStub sig = CgM $ \ _ st ->
 
 \begin{code}
 instance Monad CgM where
-  (>>=) (CgM a) f = 
-    CgM (\ env st -> 
+  (>>=) (CgM a) f =
+    CgM (\ env st ->
   	   case a env st of
 	     (v, st1) -> let CgM b = f v in b env st1)
   return v = CgM (\ _ st -> (v, st))

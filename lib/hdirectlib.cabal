@@ -1,0 +1,33 @@
+Name:               hdirect
+Version:            0.22.0
+Synopsis:           HaskellDirect support library
+Description:
+    HaskellDirect support code.
+homepage:           https://github.com/sof/hdirect
+License:            BSD3
+Author:             Sigbjorn Finne
+Maintainer:         Sigbjorn Finne <sof@forkIO.com>
+Copyright:          1998-2003 University of Glasgow and Sigbjorn Finne. 2010 Don Stewart
+Stability:          Stable
+Category:           Development
+Build-type:         Simple
+cabal-version:      >= 1.8
+
+source-repository head
+    type:     git
+    location: https://github.com/sof/hdirect
+
+library
+    ghc-options:        -Wall
+    Extensions:
+        CPP
+        ForeignFunctionInterface
+    build-depends:      base >= 2 && <= 5
+    exposed-modules:
+        HDirect
+        Pointer
+        PointerPrim
+        WideString
+    c-sources:
+        WideStringSrc.c
+        PointerSrc.c

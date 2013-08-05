@@ -10,7 +10,7 @@ Generating marshalling code for Haskell COM servers.
 \begin{code}
 module MarshallServ ( cgServMethod, mkServVTBL, mkServMain ) where
 
--- IDL representation: 
+-- IDL representation:
 import CoreIDL
 import Attribute
 import Literal ( iLit )
@@ -22,7 +22,7 @@ import AbstractH   ( HDecl, Pat )
 import PpAbstractH ( showAbstractH, ppType )
 import AbsHUtils
 
--- marshalling code: 
+-- marshalling code:
 import MarshallMethod
 import MarshallMonad
 import MarshallUtils
@@ -44,8 +44,8 @@ import Opts
         )
 
 -- standard libraries:
-import Monad ( when )
-import Maybe
+import Control.Monad ( when )
+import Data.Maybe
 
 \end{code}
 
@@ -74,18 +74,18 @@ cgServMethod i result params isSource isDisper = do
  objFlag   <- getInterfaceFlag
  let
         isObj        = objFlag /= StdFFI
-	isDispSource = 
+	isDispSource =
 	   isDisper ||
-	   (isSource && 
+	   (isSource &&
 	    case objFlag of { ComIDispatch _ -> True ; _ -> False })
 
- return ( helpStringComment i   `andDecl` 
+ return ( helpStringComment i   `andDecl`
 	  marshallMethod i isObj isDispSource result params
         )
 \end{code}
 
 \begin{code}
-marshallMethod :: Id 
+marshallMethod :: Id
 	       -> Bool
 	       -> Bool
 	       -> Result
@@ -103,22 +103,24 @@ marshallMethod i isObj isDispSource result params =
    --   * the method boilerplate (type sig and lhs of method)
    --   * the method stub that takes care of exposing the
    --     Haskell method to the outside world.
-   -- 
+   --
 
    server_stub_tysig = genTypeSig server_stub_name meth_ctxt server_stub_type
-   server_stub_type  
+   server_stub_type
      | isDispSource = funTys [method_ty, tyList tyVariant, tyVar "objState"]
                            (io (tyMaybe tyVariant))
-     | otherwise    = 
+     | otherwise    =
          case generaliseTys ((returnType stub_res_ty):stub_param_tys) of
 	   ((r:ts),mbc) -> mbCtxtTyApp mbc (funTys ts r)
+	   _ -> error "expected a type"
+
    server_stub_def   = funDef server_stub_name server_stub_pats server_stub_rhs
    server_stub_rhs
      | isDispSource     = stub_rhs
      | isHRESULT result = funApp returnHR [stub_rhs]
      | otherwise        = stub_rhs
 
-   server_stub_pats 
+   server_stub_pats
      | isDispSource = [patVar m_name]
      | otherwise    = (patVar m_name) : in_stub_pats
 
@@ -140,7 +142,7 @@ marshallMethod i isObj isDispSource result params =
 
    stub_param_tys = method_ty : stub_tys
 
-   (stub_tys_1, _) = 
+   (stub_tys_1, _) =
       constrainIIDParams (\ p -> toHaskellBaseTy True (paramType p))
       			 (\ p -> toHaskellBaseTy True (paramType p))
 			 params
@@ -183,36 +185,36 @@ marshallMethod i isObj isDispSource result params =
     where
       params'
        | isHRESULT result || isVoidTy (resultType result) = params
-       | otherwise = params ++ [Param (mkId "the_res" "the_res" Nothing 
+       | otherwise = params ++ [Param (mkId "the_res" "the_res" Nothing
 					    [AttrMode Out, Attribute "retval" []])
                                       Out Void Void False]
 
-      apply nm = 
+      apply nm =
         funApp (appendStr (show out_arity) applyName)
 	       ((funApply (var nm) in_args) : out_args)
 
       out_arity = length out_args
 
-      out_args = 
+      out_args =
         map toOutArgName $
 	filter (\ p -> paramMode p /= In) params'
        where
          toOutArgName p =
-	   var $ 
+	   var $
 	   case (paramMode p) of
 	     InOut -> "out_" ++ mkHaskellVarName (idName (paramId p))
 	     _     -> mkHaskellVarName (idName (paramId p))
 
-      in_args  = 
+      in_args  =
         map (var.mkHaskellVarName.idName.paramId) $
 	filter (\ p -> paramMode p /= Out) params'
 
-      unmarshallArg p acc = 
+      unmarshallArg p acc =
         let
          mode     = paramMode p
 	 t        = paramType p
 	 lam_pat  = mkHaskellVarName (idName (paramId p))
-	 
+
 	 (msheller, lams) =
 	  case mode of
 	    In    | isIUnknownTy t -> (inIUnknownArgName, [patVar lam_pat])
@@ -221,13 +223,13 @@ marshallMethod i isObj isDispSource result params =
 	     | isRetVal  -> (retValName, [patVar lam_pat])
 	     | otherwise -> (outArgName, [patVar lam_pat])
 	    InOut        -> (inoutArgName, [patVar lam_pat, patVar ("out_" ++ lam_pat)])
-  
+
          isRetVal  = (idAttributes (paramId p)) `hasAttributeWithName` "retval"
         in
 	contApply (varName msheller) (lam lams acc)
 
    (meth_params, prim_params)
-    | isObj 
+    | isObj
     = ( real_params ++ [obj_param]
       , iptr_param:params
       )
@@ -248,10 +250,10 @@ marshallMethod i isObj isDispSource result params =
 
    (results, ignoreResult) =
       let results' = (real_outs ++ real_inouts)
-      in	   
+      in
       case r_ty of
         Void -> (results', True)
-	_    -> 
+	_    ->
 	  case isHRESULT result && not optKeepHRESULT of
 	    True -> (results', True)
 	    _    -> (results' ++ [res_param], isSimpleTy r_ty)
@@ -259,7 +261,7 @@ marshallMethod i isObj isDispSource result params =
     -- Note: prefixing the result vals with res__ is reqd in the proxy case
     -- to distinguish it from the name for the out/in-out param (i.e., 'res__foo'
     -- rather than 'foo'.)
-   (meth_result, meth_result_expr) = 
+   (meth_result, meth_result_expr) =
      case results of
        []  -> (Nothing, unit)
        _   -> (Just (tuplePat (map patVar res_names)), tup (map var res_names))
@@ -270,17 +272,17 @@ marshallMethod i isObj isDispSource result params =
 
    returnType t = io t
 
-   res_param = 
+   res_param =
       let p = mkParam (outPrefix ++ name) Out r_ty in
       p{ paramOrigType=resultOrigType result
        , paramId=(paramId p){idAttributes=idAttributes i}
        }  -- replace attributes.
-      
+
    out_params = map remPtr (removeDependents out_deps real_outs)
     where
-     remPtr p 
+     remPtr p
        | not (isConstructedTy (nukeNames t') && not (isEnumTy t')) &&
-         not (isVariantTy t') =	
+         not (isVariantTy t') =
 	 	case paramType p of
 		   Pointer Unique isExp (Pointer _ _ x) -> p{paramType=Pointer Unique isExp x}
 		   _				        -> p{paramType=t'}
@@ -295,25 +297,25 @@ marshallMethod i isObj isDispSource result params =
    (real_inouts, inout_deps) = findParamDependents False inouts
 
    real_params		     = map jiggleInOut real_params'
-   
+
     -- the unmarshaling of inout params leaves the results bound to p__in; hence,
     -- we need to append "__in" to the method parameters here.
-   jiggleInOut p 
+   jiggleInOut p
      | paramMode p == InOut  = p{paramId=(paramId p){idName= "in__" ++ idName (paramId p)}}
      | otherwise             = p
 
 \end{code}
-     
+
 \begin{code}
 mkServVTBL :: Id -> Bool -> Bool -> [InterfaceDecl] -> CgM HDecl
 mkServVTBL iface_id isDispSource justVTBL decls =
     getDeclName $ \ mname   -> do
-    dname   <- getDllName 
-    let 
+    dname   <- getDllName
+    let
      meths = filter isMethod decls
-  
+
      mkFFIDecl m = do
-	let res              = methResult m 
+	let res              = methResult m
 	(_, prim_decl,mb_prim) <-
 	       primDecl True{-isObj-} True{-isServer-} True{-try to re-use other decls-}
 		        (declId m) dname mname
@@ -322,15 +324,15 @@ mkServVTBL iface_id isDispSource justVTBL decls =
 		        (methParams m)
 	return (prim_decl, mb_prim)
 
-     ffi_decls 
+     ffi_decls
        | isDispSource = return []
        | otherwise    = mapM mkFFIDecl meths
 
     fs_stuff <- ffi_decls
     let
      (fs, prim_nms) = unzip fs_stuff
-     
-     mk_vtbl = 
+
+     mk_vtbl =
        genTypeSig mk_vtbl_nm (listToMaybe (catMaybes ctxts))
        			     (funTys meth_tys mk_vtbl_res_ty) `andDecl`
        funDef  mk_vtbl_nm mk_vtbl_pats mk_vtbl_rhs
@@ -338,10 +340,10 @@ mkServVTBL iface_id isDispSource justVTBL decls =
      mk_vtbl_pats   = map (patVar.mkHaskellVarName.idName.declId) meths
      mk_vtbl_nm     = "mk" ++ qName (vtblName iface_id)
      mk_vtbl_res_ty = io (mkTyCon comVTableTy [iid_ty, iface_ty])
-    
+
 
      mk_vtbl_args   = zipWith (\ _ x -> var ("meth_arg"++show x)) meths [(0::Int)..]
-     mk_vtbl_rhs    = 
+     mk_vtbl_rhs    =
        foldr
 	 (uncurry binder)
 	 (funApp vtbl_creator [(hList mk_vtbl_args)])
@@ -367,7 +369,7 @@ mkServVTBL iface_id isDispSource justVTBL decls =
        map (\ m -> toHaskellMethodTy False
        				     True{- is server -}
 				     False
-				     (Just iface_ty) (methParams m) 
+				     (Just iface_ty) (methParams m)
 				     (methResult m))
            meths
 
@@ -382,12 +384,12 @@ mkServVTBL iface_id isDispSource justVTBL decls =
 
        i    = declId m
        f_nm = idOrigName i
-       dispid = 
+       dispid =
           case getDispIdAttribute (idAttributes i) of
 	     Nothing -> lit (iLit (0::Int))
 	     Just il -> integerLit il
 
-       wrap_up = funApply (var (mkPrimitiveName nm)) 
+       wrap_up = funApply (var (mkPrimitiveName nm))
 			  [var (mkHaskellVarName nm)]
        nm = idName i
 
@@ -403,13 +405,13 @@ vtblName i = mkQualName (idModule i) (idName i ++ "_vtbl")
 
 \begin{code}
 methCall :: Id -> Maybe Pat -> [Param] -> Mm ()
-methCall f mb_res params = 
+methCall f mb_res params =
   addCode $
   case mb_res of
       -- i.e., [pure] has no effect of funs return void.
       --          [pure]void f(...); => f :: .... -> IO ()
     Nothing -> bind_ f_app
-    Just p 
+    Just p
      | isPure    -> \ e -> hCase f_app [alt p e]
      | otherwise -> genBind  f_app p
  where
@@ -438,9 +440,7 @@ marshallResult i   ty =
 
 \begin{code}
 writeOutParams :: [Param] -> Mm ()
-writeOutParams params = do
-  sequence (map writeOut params)
-  return ()
+writeOutParams params = sequence_ (map writeOut params)
  where
    writeOut p
      | isVoidTy ty = return ()
@@ -450,11 +450,11 @@ writeOutParams params = do
      ty	      = paramType p
      ty'      = removeNames (removePtr ty)
      nm       = idName i
-     
+
      resV n = var ("res__" ++ n)
-     
-     wOut 
-      | isSimpleTy ty' 
+
+     wOut
+      | isSimpleTy ty'
       = funApply (refMarshallType proxyMarshallInfo ty') [var ("out_"++nm), resV nm]
       | isEnumTy ty' || isBoolTy ty'
       = funApply (refMarshallType proxyMarshallInfo intTy) [var ("out_"++nm), resV nm]
@@ -465,7 +465,7 @@ writeOutParams params = do
 	  _ -> funApp w_mshall [castPtr (var ("out_"++nm)), resV nm]
    	where
 	  w_mshall = prefix marshallRefPrefix (mkQVarName hdirectLib ptrKind)
-	  
+
 	  ptrKind
 	   | isFinalised = fptr
 	   | otherwise   = "Ptr"
@@ -480,7 +480,7 @@ What's generated for a coclass decl:
 mkServMain :: String -> Id -> [CoClassDecl] -> CgM HDecl
 mkServMain lib_nm i cdecls = do
    mapM_ addExp exports
-   return ( register_class     `andDecl` 
+   return ( register_class     `andDecl`
             new_instance       `andDecl`
 	    component_info_def `andDecl`
 	    vtbl_decls         `andDecl`
@@ -497,20 +497,20 @@ mkServMain lib_nm i cdecls = do
    libid_nm   = mkLIBIDName lib_nm
 
    implemented_ifaces = filter nonSourceIface cdecls
-   
+
    nonSourceIface d = not ((idAttributes (coClassId d)) `hasAttributeWithName` "source")
 
    component_info_nm    = "componentInfo"
    component_info_ty    = mkTyConst componentInfo
    component_info_tysig = typeSig component_info_nm component_info_ty
-   component_info_def   = 
+   component_info_def   =
 	    component_info_tysig `andDecl`
 	    valDef component_info_nm component_info_rhs
 
-   component_info_rhs   = 
+   component_info_rhs   =
     (if usesTlb then
          \ x -> funApp hasTypeLib [x]
-     else 
+     else
         id) $
      funApp mkComponentInfo
 	    [ var clsid_nm
@@ -526,18 +526,18 @@ mkServMain lib_nm i cdecls = do
    register_class_nm = "register_" ++ class_name
    register_class_ty = funTys [tyString, tyBool] io_unit
 
-   register_class_def = 
+   register_class_def =
       funDef register_class_nm [wildPat, wildPat] register_class_rhs
 
    register_class_rhs = ret unit --ToDo.
 
-   new_instance = 
+   new_instance =
       new_instance_sig `andDecl`
       new_instance_def
 
    new_instance_sig = typeSig new_instance_nm new_instance_ty
    new_instance_nm  = "new" ++ class_name
-   new_instance_ty  = 
+   new_instance_ty  =
     funTy tyString  $
     funTy (io_unit) $
     funTy (mkTyCon iID [mkTyCon iUnknown [tyVar "iid"]])
@@ -546,16 +546,16 @@ mkServMain lib_nm i cdecls = do
    component_mod = Just (idName i)
    component_new = qvar component_mod "new"
 
-   new_instance_def = funDef new_instance_nm 
+   new_instance_def = funDef new_instance_nm
 			     [ patVar "dll_path"
 			     , patVar "finaliser"
 			     , patVar "iid"
 			     ]
 			     new_instance_rhs
-   new_instance_rhs = 
+   new_instance_rhs =
        bind  component_new obj_state $
        funApp createComInst [dll_path, obj_state, var "finaliser", var ifaces_nm, var "iid"]
-  
+
    dll_path  = var "dll_path"
    obj_state = var "obj_state"
    ifaces_nm = "ifaces_" ++ class_name
@@ -568,13 +568,13 @@ mkServMain lib_nm i cdecls = do
 
    ifaces_ty     = tyList (mkTyCon comInterfaceTy [objStateTy])
    ifaces_ty_sig = typeSig ifaces_nm ifaces_ty
-   ifaces_def = 
+   ifaces_def =
      valDef ifaces_nm
             ifaces_rhs
-	 
-   usesTlb   = not optUseStdDispatch && any derivesFromIDispatch implemented_ifaces 
+
+   usesTlb   = not optUseStdDispatch && any derivesFromIDispatch implemented_ifaces
    ifaces_rhs = hList (map mkIface implemented_ifaces)
-   
+
    mkIface d
      | isDual    = funApp mkDualInterface l_args
      | isAuto    = funApp mkDispInterface l_args
@@ -583,7 +583,7 @@ mkServMain lib_nm i cdecls = do
        isDual = (idAttributes cid) `hasAttributeWithName` "dual"
        isAuto = derivesFromIDispatch d
 
-       tlb_arg 
+       tlb_arg
          | optAnonTLB || optUseStdDispatch = nothing
 	 | otherwise  = just (var libid_nm)
 
@@ -595,23 +595,23 @@ mkServMain lib_nm i cdecls = do
        vtbl_nm = mkHaskellVarName nm
 
    vtbl_decls = andDecls (map mk_vtbl implemented_ifaces)
-   
-   mk_vtbl d = 
+
+   mk_vtbl d =
       typeSig vtbl_nm (mkTyCon comVTableTy [iid_ty, objStateTy]) `andDecl`
       valDef vtbl_nm  vtbl_rhs
     where
-      iid_ty      = tyQCon (idModule (coClassId d)) 
+      iid_ty      = tyQCon (idModule (coClassId d))
       			   (idName (coClassId d)) [tyUnit]
       vtbl_nm_raw = vtblName (coClassId d)
       vtbl_nm     = mkHaskellVarName (qName vtbl_nm_raw)
       vtbl_rhs    = funApp uPerformIO [funApp (prefix "mk" vtbl_nm_raw) meths]
 
-      meths    = 
+      meths    =
         case coClassDecl d of
 	   Nothing  -> error "Stuck"
-	   Just dcl -> 
+	   Just dcl ->
                let
-	        decls = 
+	        decls =
 		  case dcl of
 		    DispInterface{dispExpandedFrom=ii} | isJust ii -> declDecls (fromJust ii)
 		    _ -> declDecls dcl

@@ -4,7 +4,7 @@ module Digraph(
 	-- At present the only one with a "nice" external interface
 	stronglyConnComp, stronglyConnCompR, SCC(..),
 
-	Graph, Vertex, 
+	Graph, Vertex,
 	graphFromEdges, buildG, transposeG, reverseE, outdegree, indegree,
 
 	Tree(..), Forest,
@@ -22,10 +22,10 @@ module Digraph(
 
 ------------------------------------------------------------------------------
 -- A version of the graph algorithms described in:
--- 
+--
 -- ``Lazy Depth-First Search and Linear Graph Algorithms in Haskell''
 --   by David King and John Launchbury
--- 
+--
 -- Also included is some additional code for printing tree structures ...
 ------------------------------------------------------------------------------
 
@@ -35,9 +35,8 @@ import Data.Array.ST
 import GHC.Arr
 
 -- std interfaces
-import Maybe
-import Array
-import List ( sortBy, (\\) )
+import Data.Maybe
+import Data.List ( sortBy, (\\) )
 \end{code}
 
 
@@ -151,9 +150,9 @@ graphFromEdges es
 
     -- key_vertex :: key -> Maybe Vertex
     -- 	returns Nothing for non-interesting vertices
-    key_vertex k   = find 0 max_v 
+    key_vertex k   = find 0 max_v
 		   where
-		     find a b | a > b 
+		     find a b | a > b
 			      = Nothing
 		     find a b = case compare k (key_map ! mid) of
 				   LT -> find a (mid-1)

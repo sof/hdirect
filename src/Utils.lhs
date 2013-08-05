@@ -4,7 +4,7 @@
 %
 
 \begin{code}
-module Utils 
+module Utils
        ( showOct
        , showHex
        , mapFromMb
@@ -25,40 +25,36 @@ module Utils
        , ( # )
 
        --,UNUSED: catMapMaybes
-       
+
        , dropSuffix
 
          -- re-exported
        , trace
-       
+
        , tryOpen
-       
+
        , basename
        , splitdir
        , prefixDir
 
        , hdirect_root
        , bailIf
-       
+
        , decons
        , safe_init
        , snoc
-       
+
        , mapAccumLM
-       
+
        , notNull		-- :: [a] -> Bool
-       
+
        ) where
 
-import Char (chr, ord, readLitChar)
+import Data.Char (chr, ord, readLitChar)
 import System.IO
-import IO
-import Int
-{- BEGIN_GHC_ONLY
-import Directory
-   END_GHC_ONLY -}
-import Monad ( when )
-import List  ( mapAccumL, isPrefixOf )
+import System.IO.Error ( catchIOError )
+import Control.Monad ( when )
+import Data.List  ( mapAccumL, isPrefixOf )
 import Debug.Trace
 
 infixl 1 #
@@ -77,7 +73,7 @@ Until NumExts is commonly available, we define the following show functions here
 showIntAtBase :: Integral a => a -> (a -> Char) -> a -> ShowS
 showIntAtBase base toChr n r
   | n < 0     = '-':showIntAtBase 10 toChr (negate n) r
-  | otherwise = 
+  | otherwise =
     case quotRem n base of { (n', d) ->
     case toChr d        of { ch ->
     let
@@ -87,16 +83,16 @@ showIntAtBase base toChr n r
     }}
 
 showHex :: Integral a => a -> ShowS
-showHex n r = 
+showHex n r =
  showString "0x" $
  showIntAtBase 16 (toChrHex) n r
- where  
+ where
   toChrHex d
     | d < 10    = chr (ord_0   + fromIntegral d)
     | otherwise = chr (ord 'a' + fromIntegral (d - 10))
 
 showOct :: Integral a => a -> ShowS
-showOct n r = 
+showOct n r =
  showString "0o" $
  showIntAtBase 8 (toChrOct) n r
  where toChrOct d = chr (ord_0   + fromIntegral d)
@@ -115,7 +111,7 @@ mapFromMb d f mb = case mb of  Nothing -> d ; Just v  -> f v
 \begin{code}
 split :: Eq a => a -> [a] -> [[a]]
 split _ [] = []
-split a as = 
+split a as =
  case break (==a) as of
    (xs,[])   -> [xs]
    (xs,_:ys) -> xs:split a ys
@@ -129,11 +125,11 @@ splitLast :: Eq a => [a] -> [a] -> ([a],[a])
 splitLast []         ls = (ls,[])
 splitLast sep@(_:ss) ls = splitLastBy (sep `isPrefixOf`) (drop (length ss)) ls
 
-splitLastBy :: ([a] -> Bool) -- True => current suffix satisifies 
+splitLastBy :: ([a] -> Bool) -- True => current suffix satisifies
 	    -> ([a] -> [a])  -- for the last match, transform the result coming back.
 	    -> [a]
 	    -> ([a],[a])
-splitLastBy predic munge ls = 
+splitLastBy predic munge ls =
    case (chomp (-1) (0::Int) ls) of
      (_,bef,aft) -> (bef,aft)
  where
@@ -201,8 +197,8 @@ Dropping the extension off of a filename:
 
 \begin{code}
 dropSuffix :: String -> String
-dropSuffix str = 
- case dropWhile (\ch -> ch /= '.' && ch /= '/' && ch /= '\\' ) 
+dropSuffix str =
+ case dropWhile (\ch -> ch /= '.' && ch /= '/' && ch /= '\\' )
                 (reverse str) of
       ('.':rs) -> reverse rs
       _        -> str
@@ -212,7 +208,7 @@ dropSuffix str =
 dropPrefix :: Eq a => [a] -> [a] -> [a]
 dropPrefix []         ys = ys
 dropPrefix _          [] = []
-dropPrefix (x:xs) (y:ys) 
+dropPrefix (x:xs) (y:ys)
   | x == y               = dropPrefix xs ys
   | otherwise            = y:ys
 -}
@@ -221,12 +217,12 @@ dropPrefix (x:xs) (y:ys)
 Slightly generalised version of code found in GreenCard's front end:
 
 \begin{code}
-tryOpen ::   Bool 
-	 -> [FilePath] 
-	 -> [String] 
+tryOpen ::   Bool
+	 -> [FilePath]
+	 -> [String]
 	 -> FilePath
 	 -> IO (Maybe FilePath)
-tryOpen verbose path exts name = 
+tryOpen verbose path exts name =
   doUntil (mbOpenFile verbose) (allFileNames path name exts)
 
 doUntil :: (a -> IO (Maybe b)) -> [a] -> IO (Maybe b)
@@ -238,11 +234,11 @@ doUntil f (a:as) = do
    _       -> return v
 
 allFileNames :: [String] -> String -> [String] -> [String]
-allFileNames path file exts 
+allFileNames path file exts
   = [addSuffix '/' d ++ file ++ (prefixWith '.' ext) | d <- path, ext <- exts]
     where
      addSuffix _  []  = []
-     addSuffix ch ls  = 
+     addSuffix ch ls  =
         case (decons ls) of
 	  (_,x)
 	    | x == ch   -> ls
@@ -278,9 +274,9 @@ mbOpenFile verbose fpath = do
   END_GHC_ONLY -}
 {- BEGIN_NOT_FOR_GHC -}
   flg <- (openFile fpath ReadMode >>= \ h -> hClose h >> return True)
-            `catch` (\ _ -> return False)
+            `catchIOError` (\ _ -> return False)
 {- END_NOT_FOR_GHC -}
-  if not flg 
+  if not flg
    then return Nothing
    else do
      when verbose (hPutStrLn stderr ("Reading file: " ++ show fpath))
@@ -299,7 +295,7 @@ basename str = snd $
      -- versa \ isn't allowed in POSIX(?) style pathnames).
 
 splitdir :: String -> (String, String)
-splitdir = 
+splitdir =
   splitLastBy (\ (x:_) -> x == '/' || x == '\\')
               id
 
@@ -317,10 +313,10 @@ Removing escape char from double quotes:
 \begin{code}
 deEscapeString :: String -> String
 deEscapeString [] = []
-deEscapeString ls@('\\':x:xs) = 
+deEscapeString ls@('\\':x:xs) =
   case x of
     '"' -> x : deEscapeString xs -- "
-    _   -> 
+    _   ->
 	case readLitChar ls of
 	  ((ch,rs):_) -> ch : deEscapeString rs
 	  _ -> '\\':x: deEscapeString xs
@@ -377,7 +373,7 @@ mapAccumLM :: (Monad m)
            => (acc -> x -> m (acc, y)) -- Function of elt of input list
 				     -- and accumulator, returning new
 				     -- accumulator and elt of result list
-   	   -> acc	    -- Initial accumulator 
+   	   -> acc	    -- Initial accumulator
 	   -> [x]	    -- Input list
 	   -> m (acc, [y])	    -- Final accumulator and result list
 mapAccumLM _ s []     	=  return (s, [])
@@ -385,7 +381,7 @@ mapAccumLM f s (x:xs) 	=  do
  (s', y)     <- f s x
  (s'',ys)    <- mapAccumLM f s' xs
  return (s'',y:ys)
- 
+
 \end{code}
 
 The simplest of defns; usefule, but not provided as standard:

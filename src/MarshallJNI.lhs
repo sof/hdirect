@@ -8,8 +8,8 @@
 Generating marshalling code for Haskell COM servers.
 
 \begin{code}
-module MarshallJNI 
-	( 
+module MarshallJNI
+	(
 	  cgJNIMethod
 	, cgJNIInterface
 	, cgJNIClass
@@ -31,8 +31,8 @@ import Opts
 	( optOneModulePerInterface
         )
 
-import Monad ( when )
-import Maybe ( mapMaybe )
+import Control.Monad ( when )
+import Data.Maybe ( mapMaybe )
 import Utils ( splitLast, snoc )
 
 \end{code}
@@ -58,7 +58,7 @@ mkJNIMethod i iface res params iface_attrs = m_decl
 
   m_def       = funDef m_name m_pats m_rhs
 
-  res_ty      = 
+  res_ty      =
     let r_ty = toHaskellTy True (resultOrigType res) in
     if isCtor then
        groundTyVars r_ty
@@ -77,10 +77,10 @@ mkJNIMethod i iface res params iface_attrs = m_decl
   isStaticGetField = isGetField && isStatic
   isStaticSetField = isSetField && isStatic
 
-  objParamTy 
+  objParamTy
     | isStatic    = mkTyConst jniEnv
     | isCtor      = mkTyConst jniEnv
-    | isInterface = let 
+    | isInterface = let
                        tyv = tyVar "a"
 		       nm  = mkHaskellTyConName iface
 		       qnm
@@ -91,7 +91,7 @@ mkJNIMethod i iface res params iface_attrs = m_decl
 		       [ctxtTyApp (ctxtClass qnm [mkTyCon jObject [tyv]])
 			          tyv]
     | otherwise   = tyQCon Nothing (mkHaskellTyConName iface) [obj_ty_arg]
-   where  
+   where
     obj_ty_arg
      | isFinal   = tyUnit
      | otherwise = tyVar "a"
@@ -108,7 +108,7 @@ mkJNIMethod i iface res params iface_attrs = m_decl
 
   cls_cls_name = mkClassName (mkHaskellVarName iface)
 
-  invoke_static_args = 
+  invoke_static_args =
           [ var cls_cls_name
 	  , meth_name
 	  , ty_spec
@@ -119,7 +119,7 @@ mkJNIMethod i iface res params iface_attrs = m_decl
    | isGetField = stringLit (toTyDesc (resultType res))
    | otherwise  = stringLit (mkJavaTypeSpec params res)
 
-  meth_name 
+  meth_name
     | isGetField = stringLit stripped_m_name
     | isSetField = stringLit stripped_m_name
     | otherwise  = stringLit m_orig_name
@@ -139,7 +139,7 @@ mkJavaTypeSpec ps res = '(':concatMap tyParam ps ++ ')':tyRes res
    tyRes  r  = toTyDesc (resultType r)
 
 toTyDesc :: Type -> String
-toTyDesc ty = 
+toTyDesc ty =
    case ty of
        Integer Short _     -> "S"
        Integer Long  _     -> "I"
@@ -189,7 +189,7 @@ cgJNIInterface i ignore_decls = do
         addExport (ieClass (mkHaskellTyConName name))
         addExport (ieValue cls_cls_name)
    let
-    ds 
+    ds
      | ignore_decls = emptyDecl
      | otherwise    = class_decl `andDecl` cls_nm_decl
 
@@ -207,7 +207,7 @@ cgJNIInterface i ignore_decls = do
 
    tvar       = mkTyVar "a"
    attrs      = idAttributes i
-   is         = 
+   is         =
     case (findAttribute "jni_implements" attrs) of
       Just (Attribute _ [ParamLit (StringLit s)]) -> words s
       _ -> []
@@ -220,7 +220,7 @@ cgJNIInterface i ignore_decls = do
 cgJNIClass :: Id
 	   -> Bool
 	   -> CgM HDecl
-cgJNIClass i incl_type_defs 
+cgJNIClass i incl_type_defs
  | incl_type_defs = return iface_inst_decls
  | otherwise      = do
    addExport (ieValue cls_cls_name)
@@ -244,7 +244,7 @@ cgJNIClass i incl_type_defs
 			      , stringLit "()V"
 			      , tup []
 			      ]
-   ctor_name  = "new" ++ h_nm 
+   ctor_name  = "new" ++ h_nm
 
    iface_inst_decls = andDecls (map declInstance ifaces_implemented)
 
@@ -255,7 +255,7 @@ cgJNIClass i incl_type_defs
 
    declInstance n = hInstance Nothing (mkQConName hmod haskell_nm) obj_ty_open []
      where
-      hmod 
+      hmod
         | optOneModulePerInterface = Just haskell_nm
 	| otherwise                = Nothing
 

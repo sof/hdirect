@@ -13,7 +13,7 @@ import PP
 import Literal
 import BasicTypes
 import Utils
-import Maybe
+import Data.Maybe
 import Opts ( optDebug, optIncludeAsImport, optExcludeSysIncludes )
 
 type IDLDoc = PPDoc ()
@@ -28,7 +28,7 @@ ppIDL src ds
   where
      -- remove the included bits
     trundle     _          []     = []
-    trundle ks@(keepIt:ls) (x:xs) = 
+    trundle ks@(keepIt:ls) (x:xs) =
       case x of
         IncludeStart ix | isJust keepIt || is_src -> trundle (Just forKeeps : ks) xs
 	   where
@@ -50,12 +50,12 @@ ppId iden =
      FunId i mb_cc ps -> (pp_callconv mb_cc) <+> ppId i <> parens (ppParams ps)
      BitFieldId x i   -> ppId i <+> char ':' <> text (show x)
      CConvId cc i     -> (pp_callconv (Just cc)) <+> ppId i
-     Pointed quals i  -> text (replicate len '*') <> ppId i 
+     Pointed quals i  -> text (replicate len '*') <> ppId i
        where
         len = length quals
   where
    pp_callconv mb_cc = mapFromMb empty (ppCallConv True) mb_cc
-    
+
 \end{code}
 
 %*
@@ -67,20 +67,20 @@ ppId iden =
 \begin{code}
 ppDefn :: Defn -> IDLDoc
 
-ppDefn (Typedef t attrs ids) 
-  = text "typedef"        <+> 
-     ppAttrs False attrs  <+> 
+ppDefn (Typedef t attrs ids)
+  = text "typedef"        <+>
+     ppAttrs False attrs  <+>
      ppType t             <+>
      hsep (punctuate comma (map ppId ids)) <> semi
 
 ppDefn (TypeDecl t)      = ppType t <> semi
 ppDefn (ExternDecl t is) = text "extern" <+> ppType t <+> hsep (punctuate comma (map ppId is)) <> semi
 
-ppDefn (Constant i attrs t expr) 
+ppDefn (Constant i attrs t expr)
   = ppAttrs False attrs <> text "const" <+> ppType t <+> ppId i <+> equals <+> ppExpr expr <> semi
 
 ppDefn (Attributed attrs d)
-  = ppAttrs False attrs $+$ ppDefn d 
+  = ppAttrs False attrs $+$ ppDefn d
 
 ppDefn (Attribute ids read_only t)
   | read_only = text "readonly" <+> ppType t <+> hsep (punctuate comma (map ppId ids)) <> semi
@@ -97,8 +97,8 @@ ppDefn (Exception i mems)
   = text "exception" <+> ppId i <+> ppMembers mems <> semi
 
 ppDefn (Interface i inherit ds)
-  = hang (text "interface" <+> ppId i <+> 
-          hsep (punctuate (text ":") 
+  = hang (text "interface" <+> ppId i <+>
+          hsep (punctuate (text ":")
 	                  (text "" : map text inherit)) <+> char '{')
       4 (ppDefns ds) $$
     char '}' <> semi
@@ -125,14 +125,14 @@ ppDefn (DispInterfaceDecl i iid)
     char '}' <> semi
 
 ppDefn (CoClass i c_mems) -- [(Bool, Id, [Attribute])]
-  = text "coclass" <+> ppId i <+> 
+  = text "coclass" <+> ppId i <+>
     char '{' $$
       ppCoCMembers c_mems $$
     char '}' <> semi
 
 ppDefn (Library i ds)
   = text "library" <+> ppId i <+> char '{' $$
-      ppDefns ds $$ 
+      ppDefns ds $$
     char '}' <> semi
 
 ppDefn (CppQuote str)
@@ -144,19 +144,19 @@ ppDefn (HsQuote str)
 ppDefn (CInclude str)
   = text "include" <+> text str
 
-ppDefn (Import imps) 
- | optDebug = 
-   text "import" <+> 
+ppDefn (Import imps)
+ | optDebug =
+   text "import" <+>
    hsep (punctuate comma (map (\ (v,defs) -> doubleQuotes (text v) $$ vcat (map ppDefn defs)) imps)) <> semi
  | otherwise =
-   text "import" <+> 
+   text "import" <+>
    hsep (punctuate comma (map (\ (v,_) -> doubleQuotes (text v)) imps)) <> semi
 
 ppDefn (ImportLib imp)
   = text "importlib" <+> parens (doubleQuotes (text imp)) <> semi
 
 ppDefn (Pragma str)
-  = text "#pragma" <+> text str 
+  = text "#pragma" <+> text str
 
 ppDefn (IncludeStart _) = empty
 ppDefn IncludeEnd = empty
@@ -200,18 +200,18 @@ ppType TyBString = text "BSTR"
 ppType (TyPointer t)  = ppType t <> char '*'
 ppType (TyArray t es) = ppType t <> ppList (map ppExpr es)
 ppType (TySafeArray t)   = text "SAFEARRAY" <> parens (ppType t)
-ppType (TyFun mb_cc t ps) = 
+ppType (TyFun mb_cc t ps) =
    ppType t <+> parens (pp_callconv <+> char '*') <>
    parens (ppParams ps)
  where
    pp_callconv = mapFromMb empty (ppCallConv True) mb_cc
 
-ppType (TyStruct mb_tag [] _)  = 
+ppType (TyStruct mb_tag [] _)  =
   text "struct" <+> tag
   where
    tag = mapFromMb empty ppId mb_tag
 
-ppType (TyStruct mb_tag mems mb_pack) = 
+ppType (TyStruct mb_tag mems mb_pack) =
   hang (text "struct" <+> tag <+> char '{')
     4  (ppMembers mems) $$
   char '}' $$
@@ -219,26 +219,26 @@ ppType (TyStruct mb_tag mems mb_pack) =
   where
    tag = mapFromMb empty ppId mb_tag
 
-ppType (TyString mblen) = 
+ppType (TyString mblen) =
   text "string" <>
-  (mapFromMb empty 
+  (mapFromMb empty
              (\ l -> char '<' <> ppExpr l <> char '>') mblen)
 
-ppType (TyWString mblen) = 
+ppType (TyWString mblen) =
   text "wstring" <>
-  (mapFromMb empty 
+  (mapFromMb empty
              (\ l -> char '<' <> ppExpr l <> char '>') mblen)
 
 ppType (TySequence t mblen) =
-  text "sequence" <> 
+  text "sequence" <>
   char '<' <> ppType t <>
   (mapFromMb empty  (\ l -> comma <> ppExpr l) mblen) <>
-  char '>' 
+  char '>'
 
 ppType (TyFixed Nothing)      = text "fixed"
 ppType (TyFixed (Just (e,i))) =
   text "fixed" <> char '<' <>
-    ppExpr e <> comma <+> ppILit i <> 
+    ppExpr e <> comma <+> ppILit i <>
   char '>'
 
 ppType (TyName nm _) = text nm
@@ -254,13 +254,13 @@ ppType (TyUnion struct_name ty switch_name union_name switches) =
   char '}'
 
 ppType (TyCUnion mbid members _) =
-  hang (text "union" <+> 
+  hang (text "union" <+>
         (mapFromMb empty ppId mbid) <+> char '{')
     3 (ppMembers members) $+$
   char '}'
 
 ppType (TyUnionNon mbid switches) =
-  hang (text "union" <+> 
+  hang (text "union" <+>
         (mapFromMb empty ppId mbid) <+> char '{')
     3 (ppSwitches switches) $+$
   char '}'
@@ -299,7 +299,7 @@ ppDefns :: [Defn] -> IDLDoc
 ppDefns ls = ppDecls (map ppDefn ls)
 
 ppAttrs :: Bool -> [Attribute] -> IDLDoc
-ppAttrs isParam [] 
+ppAttrs isParam []
   | isParam   = text "[in]"
   | otherwise = empty
 ppAttrs _ as = ppList (map ppAttr as)
@@ -307,7 +307,7 @@ ppAttrs _ as = ppList (map ppAttr as)
 ppAttr :: Attribute -> IDLDoc
 ppAttr (Mode dir)      = ppDirection dir
 ppAttr (Attrib f [])   = ppId f
-ppAttr (Attrib f args) = 
+ppAttr (Attrib f args) =
   ppId f <> parens (hsep (punctuate comma (map ppAttrParam args)))
   where
    ppAttrParam EmptyAttr    = empty
@@ -320,7 +320,7 @@ ppCoCMembers mems = ppDecls (map ppCoCMember mems)
 
 ppCoCMember :: CoClassMember -> IDLDoc
 ppCoCMember (isInterface, i, attrs) =
-  ppAttrs False attrs <+> 
+  ppAttrs False attrs <+>
   (if isInterface then
       text "interface"
    else
@@ -335,14 +335,14 @@ ppParam (Param nm ty attrs) = ppAttrs True attrs <+> ppType ty <+> ppId nm
 
 ppRaises :: Maybe Raises -> IDLDoc
 ppRaises Nothing    = empty
-ppRaises (Just ids) = 
-  text "raises" <+> 
+ppRaises (Just ids) =
+  text "raises" <+>
   ppTuple (map text ids)
 
 ppContext :: Maybe Context -> IDLDoc
 ppContext Nothing    = empty
-ppContext (Just ids) = 
-  text "context" <+> 
+ppContext (Just ids) =
+  text "context" <+>
   ppTuple (map (doubleQuotes.text) ids)
 
 ppProps :: [([Attribute], Type, Id)] -> IDLDoc
@@ -372,10 +372,10 @@ ppSwitch (Switch labels (Just param)) =
 \begin{code}
 ppExpr :: Expr -> IDLDoc
 
-ppExpr (Binary op e1 e2) = 
+ppExpr (Binary op e1 e2) =
   parens (ppExpr e1)  <+>
      ppBinaryOp op    <+>
-  parens (ppExpr e2) 
+  parens (ppExpr e2)
 
 ppExpr (Unary op e) =
   ppUnaryOp op <+> parens (ppExpr e)

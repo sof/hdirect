@@ -6,8 +6,7 @@ Stubs for marshalling and unmarshalling primitive
 types.
 
 \begin{code}
-{-# OPTIONS -#include "PointerSrc.h" #-}
-module HDirect 
+module HDirect
 	(
 	  module HDirect
 
@@ -25,35 +24,36 @@ module HDirect
 	, Double
 	, Float
 	, Bool
-	
+
 	, Ptr
 
 	, StablePtr
 	, deRefStablePtr
 	, free
-	
+
 	) where
 
-import Char
-import Int  ( Int8, Int16, Int32, Int64 )
-import Word ( Word8, Word16, Word32, Word64 )
+import Data.Char
+import Data.Int  ( Int8, Int16, Int32, Int64 )
+import Data.Word ( Word8, Word16, Word32, Word64 )
 --import Addr
-import Monad
+import Control.Monad
 import Pointer
 import System.IO.Unsafe ( unsafePerformIO )
 
 
 import Foreign.StablePtr
 import Foreign.Storable
-import Foreign.ForeignPtr
+import Foreign.ForeignPtr ( ForeignPtr, castForeignPtr, withForeignPtr )
+import Foreign.ForeignPtr.Unsafe ( unsafeForeignPtrToPtr )
 import Foreign.Ptr
 import Foreign.C.Types ( CChar )
 import Foreign.C.String
 import Foreign.Marshal.Alloc (mallocBytes, free)
 
-import Bits
+import Data.Bits
 {- BEGIN_GHC_ONLY
-import GlaExts ( Int(..), Int# )
+import GHC.Base ( Int(..), Int# )
 #if __GLASGOW_HASKELL__ >= 505
 import GHC.Base ( getTag )
 #else
@@ -61,7 +61,7 @@ import GlaExts ( dataToTag# )
 getTag :: a -> Int#
 getTag x = dataToTag# x
 {- WAS: x `seq` dataToTag# x
-        this won't work 
+        this won't work
 	  (seq's type is a->b->b, where b isn't 'open',
            but has to be of kind *)
 -}
@@ -70,6 +70,7 @@ getTag x = dataToTag# x
 
 infixl 5 .+.
 
+foreignPtrToPtr :: ForeignPtr a -> Ptr a
 {- BEGIN_GHC_ONLY
 #if __GLASGOW_HASKELL__ >= 601
 foreignPtrToPtr = unsafeForeignPtrToPtr
@@ -101,7 +102,7 @@ writeInt ptr v = poke ptr v
 readInt :: Ptr Int -> IO Int
 readInt ptr = peek ptr
 
---ToDo: generate host-specific versions of 
+--ToDo: generate host-specific versions of
 sizeofInt :: Word32
 sizeofInt = fromIntegral (sizeOf (0 :: Int))
 
@@ -490,7 +491,7 @@ marshallunique :: (IO (Ptr a))
                -> (Ptr a -> a -> IO ())
 	       -> Maybe a
 	       -> IO (Ptr a)
-marshallunique allocRef marshallInto mb = 
+marshallunique allocRef marshallInto mb =
   case mb of
     Nothing -> return nullPtr
     Just x  -> marshallref allocRef marshallInto x
@@ -554,7 +555,7 @@ Marshalling [unique]void* pointers
 
 \begin{code}
 marshallunique_ptr :: Maybe (Ptr a) -> IO (Ptr a)
-marshallunique_ptr mb = 
+marshallunique_ptr mb =
   case mb of
     Nothing -> marshallPtr nullPtr
     Just x  -> marshallPtr x
@@ -642,7 +643,7 @@ marshalllist :: Word32
 	     -> IO (Ptr b)
 marshalllist szof writeelt ls = do
  arr <- alloc (len*szof)
- foldM writeElt (castPtr arr) ls
+ foldM_ writeElt (castPtr arr) ls
  return (castPtr arr)
   where
    len = fromIntegral (length ls)
@@ -664,7 +665,7 @@ unmarshalllist szof offset len unpack ptr = do
     return (v:vs)
 
 unmarshallSingle :: (Ptr a -> IO a) -> Ptr a -> IO [a]
-unmarshallSingle ref ptr 
+unmarshallSingle ref ptr
  | ptr == nullPtr = return []
  | otherwise      = do
       x <- ref ptr
@@ -672,14 +673,14 @@ unmarshallSingle ref ptr
 
 writelist :: Bool -> Word32 -> (Ptr a -> a -> IO ()) -> Ptr [a] -> [a] -> IO ()
 writelist do_alloc szof writeelt pptr ls = do
- the_ptr <- 
+ the_ptr <-
     (if do_alloc then do
         ptr <- alloc (szof * fromIntegral len)
 	writePtr (castPtr pptr) ptr
 	return (castPtr ptr)
       else
         return (castPtr pptr))
- foldM writeElt the_ptr ls
+ foldM_ writeElt the_ptr ls
  return ()
   where
    len = length ls
@@ -839,7 +840,7 @@ marshallSequence wElt wTermin szElt mbLen ls = do
    wTermin pseq'
    return pseq'
   where
-    (len, the_ls) = 
+    (len, the_ls) =
       case mbLen of
         Nothing -> (fromIntegral (length ls + 1), ls)
 	Just x  -> (x + 1, take (fromIntegral x) ls)
@@ -861,7 +862,7 @@ unmarshallSequence rElt termPred szElt mbLen ptr
    let ptr0 = addNCastPtr ptr 0
    loop 0 ptr0
   where
-   lenPred = 
+   lenPred =
      case mbLen of
        Nothing -> const False
        Just x  -> \ y -> y >= x
@@ -893,8 +894,8 @@ writeSequence :: ( Eq a )
 	      -> (Ptr a -> IO ())
 	      -> Word32
 	      -> Maybe Word32
-	      -> Ptr a 
-	      -> [a] 
+	      -> Ptr a
+	      -> [a]
 	      -> IO ()
 writeSequence do_alloc wElt wTermin szElt mbLen ppseq ls = do
   pseq <-
@@ -907,7 +908,7 @@ writeSequence do_alloc wElt wTermin szElt mbLen ppseq ls = do
   pseq' <- foldM writeElt pseq the_ls
   wTermin pseq'
  where
-   (seq_len, the_ls) = 
+   (seq_len, the_ls) =
       case mbLen of
         Nothing -> (fromIntegral (length ls + 1), ls)
 	Just x  -> (x + 1, take (fromIntegral x) ls)
@@ -925,7 +926,7 @@ freeSequence = free
 marshallblist :: Word32 -> Word32 -> (Ptr a -> a -> IO ()) -> [a] -> IO (Ptr [a])
 marshallblist szof l writeelt ls = do
  arr <- alloc (l'*szof)
- foldM writeElt (castPtr arr) ls
+ foldM_ writeElt (castPtr arr) ls
  return arr
   where
    l' = atLeast l (fromIntegral (0::Int)) ls
@@ -940,7 +941,7 @@ marshallblist szof l writeelt ls = do
 
 writeblist :: Word32 -> Word32 -> (Ptr a -> a -> IO ()) -> Ptr [a] -> [a] -> IO ()
 writeblist szof len writeelt ptr ls = do
- foldM writeElt (castPtr ptr) (take (fromIntegral len) ls)
+ foldM_ writeElt (castPtr ptr) (take (fromIntegral len) ls)
  return ()
   where
 
@@ -1069,7 +1070,7 @@ sizeofPtr  = fromIntegral (sizeOf (undefined :: Foreign.Ptr.Ptr ()))
 \begin{code}
 primInvokeIt :: (Ptr b -> Ptr a -> IO c) -> Int -> IO (Ptr a) -> IO c
 primInvokeIt meth offset mk_obj_ptr = do
-  obj_ptr <- mk_obj_ptr 
+  obj_ptr <- mk_obj_ptr
   lpVtbl  <- derefPtr (castPtr obj_ptr)
   methPtr <- indexPtr lpVtbl offset
   meth methPtr obj_ptr
@@ -1086,7 +1087,7 @@ primInvokeItFO meth offset mk_obj_ptr = do
 stackStringLen :: Int -> String -> (Ptr String -> IO a) -> IO a
 stackStringLen len str f
       = let slen = length str + 1 `max` len
-        in stackFrame (fromIntegral slen) $ \pstr -> do 
+        in stackFrame (fromIntegral slen) $ \pstr -> do
 	 writeString False pstr str
          f pstr
 

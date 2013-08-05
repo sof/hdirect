@@ -4,7 +4,7 @@
 %
 
 \begin{code}
-module BasicTypes 
+module BasicTypes
 
 	(
 	  Name
@@ -42,22 +42,19 @@ module BasicTypes
 	, ppName
 	, ppQualName
 	, ppDirection
-	
+
 	, strToCallConv
-	
+
 	, EnumKind(..)
 	, classifyProgression
 
 	) where
 
 import PP
-import Maybe ( fromMaybe )
+import Data.Maybe ( fromMaybe )
 import Opts  ( optNoQualNames, optIntIsInt )
 import Utils ( mapMb )
-import Int
-{- BEGIN_GHC_ONLY
-import GlaExts
-   END_GHC_ONLY -}
+import Data.Int
 \end{code}
 
 \begin{code}
@@ -78,7 +75,7 @@ mkQualName :: Maybe String -> String -> QualName
 mkQualName md nm = QName nm nm md Nothing
 
 toQualName :: String -> QualName
-toQualName str = 
+toQualName str =
   case (break (=='.') (reverse str)) of
     (_,[])    -> mkQualName Nothing str
     (mn,_:dm) -> mkQualName (Just (reverse dm)) (reverse mn)
@@ -104,12 +101,12 @@ type Inherit = [Name]
 -- A five element list
 type GUID = [String]
 
-data Size 
+data Size
  = Short | Natural | Long | LongLong
    deriving (
               Show -- for Lex debugging only
 	    , Eq
-	    ) 
+	    )
 
 data CallConv = Stdcall | Pascal | Cdecl | Fastcall
 	        deriving ( Eq, Show )
@@ -123,31 +120,31 @@ strToCallConv _		= Nothing
 Arithmetic and logical operators allowed in IDL:
 
 \begin{code}
-data BinaryOp 
- = Xor | Or  | And | Shift ShiftDir 
- | Add | Sub | Div | Mod | Mul   
+data BinaryOp
+ = Xor | Or  | And | Shift ShiftDir
+ | Add | Sub | Div | Mod | Mul
  | LogAnd | LogOr
  | Gt | Ge | Eq | Le | Lt | Ne
- deriving ( Eq, Show ) 
+ deriving ( Eq, Show )
 
-data UnaryOp  
+data UnaryOp
  = Minus | Plus | Not | Negate | Deref
    deriving ( Eq, Show )
 
-data ShiftDir 
+data ShiftDir
  = L | R
    deriving ( Eq, Show )
 
-data Qualifier 
+data Qualifier
  = Const | Volatile
    deriving (
               Show
 	    , Eq
 	    )
 
-data PointerType 
-  = Ptr 
-  | Ref 
+data PointerType
+  = Ptr
+  | Ref
   | Unique
   deriving ( Eq, Show )
 
@@ -200,7 +197,7 @@ ppQualifier Volatile = text "volatile"
 ppSize :: Size -> PPDoc a
 ppSize Short     = text "short"
 ppSize Long      = text "long"
-ppSize Natural 
+ppSize Natural
   | optIntIsInt  = text "int"
   | otherwise    = text "long"
 ppSize LongLong  = text "long long"
@@ -208,7 +205,7 @@ ppSize LongLong  = text "long long"
 ppCallConv :: Bool -> CallConv -> PPDoc a
 ppCallConv for_c c =
  text $
- case c of 
+ case c of
   Stdcall -> if for_c then "__stdcall" else "stdcall"
    -- it is hard to find definite information on this, but I believe
    -- that the Pascal calling convention is after all identical to
@@ -225,7 +222,7 @@ ppName :: Name -> PPDoc a
 ppName nm = text nm
 
 ppQualName :: QualName -> PPDoc a
-ppQualName (QName nm _ md def_mod)  
+ppQualName (QName nm _ md def_mod)
  | optNoQualNames = text nm
  | otherwise    =
     case def_mod of

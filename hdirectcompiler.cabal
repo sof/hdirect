@@ -1,11 +1,11 @@
-Name:               hdirect
-Version:            0.21.0
+Name:               hdirectcompiler
+Version:            0.22.0
 Synopsis:           An IDL compiler for Haskell
 Description:
     HaskellDirect is an IDL compiler for Haskell, which offers a helping
     hand to the Haskell programmer that wants to better interact with
     and reuse external code.
- . 
+ .
     Interfacing Haskell code to external code involves the conversion of
     values between the Haskell world and the outside, as data
     representations and details of how memory is managed, are worlds
@@ -16,7 +16,7 @@ Description:
     Using an Interface Definition Language (IDL) as basis, HaskellDirect
     automates the generation of such impedance matching code, generating
     all the necessary marshaling code for you.
- . 
+ .
     With IDL, the functionality provided by a programming interface is
     specified in a programming language neutral framework. The
     HaskellDirect IDL compiler converts this specification into a set of
@@ -24,7 +24,7 @@ Description:
     can be used to:
  .
  * Call upon external functions from within Haskell, HaskellDirect creates bindings to external (C-callable) libraries.
- . 
+ .
  * Let external code call upon Haskell functions, HaskellDirect creates foreign/external language interfaces to Haskell libraries.
  .
  * Call COM (Microsoft's Component Object Model) methods from Haskell, HaskellDirect helps you use Microsoft COM components from within Haskell.  The generated stubs can be used with Hugs98 or GHC.
@@ -34,40 +34,46 @@ Description:
     The HaskellDirect IDL compiler currently groks both the OSF DCE
     dialect of IDL (including the various extensions introduced by the
     Microsoft IDL compiler) and the OMG IIOP/CORBA dialect. (Only the
-    former can be used for describing COM interfaces.) 
+    former can be used for describing COM interfaces.)
  .
-homepage:           http://www.haskell.org/hdirect/
+homepage:           https://github.com/sof/hdirect
 License:            BSD3
 License-File:       LICENSE
-Author:             Sigbjorn Finne
-Maintainer:         Don Stewart <dons@galois.com>
+Author:             Sigbjorn Finne <sof@forkIO.com>
+Maintainer:         Sigbjorn Finne <sof@forkIO.com>
 Copyright:          1998-2003 University of Glasgow and Sigbjorn Finne. 2010 Don Stewart
 Stability:          Stable
 Category:           Development
 Build-type:         Simple
-cabal-version:      >= 1.6
+cabal-version:      >= 1.8
 
 source-repository head
-    type:     darcs
-    location: http://code.haskell.org/~dons/code/hdirect
+    type:     git
+    location: https://github.com/sof/hdirect
 
 Executable hdirect
-    hs-source-dirs:  src
+    hs-source-dirs:  driver
     Main-Is:            Main.lhs
     ghc-options:        -Wall
     build-tools:        happy
-    build-depends:      haskell98,
-                        base >= 2 && < 5,
+    build-depends:      base >= 2 && <= 5,
                         pretty,
-                        array
+                        array,
+                        old-locale,
+                        old-time,
+                        process,
+                        hdirectcompiler
 
 library
     hs-source-dirs:  src
+    ghc-options:        -Wall
     build-tools:        happy
-    build-depends:      haskell98,
-                        base >= 2 && < 5,
+    build-depends:      base >= 2 && <= 5,
                         pretty,
-                        array
+                        array,
+                        old-locale,
+                        old-time,
+                        process
 
     exposed-modules:
         AbsHUtils
@@ -98,7 +104,6 @@ library
         LexM
         LibUtils
         Literal
-        Main
         MarshallAbstract
         MarshallAuto
         MarshallCore

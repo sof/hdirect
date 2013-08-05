@@ -6,7 +6,7 @@
 %
 
 Operations on attributes, the <tt/Attribute/ type itself
-is defined in <tt/CoreIDL/ 
+is defined in <tt/CoreIDL/
 
 \begin{code}
 module Attribute where
@@ -14,9 +14,9 @@ module Attribute where
 import BasicTypes
 import Literal
 import CoreIDL
-import List  ( find )
+import Data.List  ( find )
 import Utils ( elemBy, mapMb, notNull )
-import Maybe ( mapMaybe )
+import Data.Maybe ( mapMaybe )
 
 \end{code}
 
@@ -106,7 +106,7 @@ hasUniqueAttribute :: [Attribute] -> Bool
 hasUniqueAttribute attrs = hasAttributeWithName attrs "unique"
 
 getLengthAttribute :: [Attribute] -> Maybe AttributeParam
-getLengthAttribute attrs = 
+getLengthAttribute attrs =
    case (filter withDep attrs) of
      (AttrDependent _ (x:_) : _) -> Just x
      _ -> Nothing
@@ -122,7 +122,7 @@ hasModeAttribute dir attrs = any withMode attrs
    withMode _		 = False
 
 getSwitchIsAttribute :: [Attribute] -> Maybe Expr
-getSwitchIsAttribute as = 
+getSwitchIsAttribute as =
   case mapMb atParams (findAttribute "switch_is" as) of
     Just [ParamExpr e]          -> Just e
     Just [ParamVar v]		-> Just (Var v)
@@ -155,7 +155,7 @@ sourceAttribute :: Attribute
 sourceAttribute = Attribute "source" []
 
 getDefaultCConv :: [Attribute] -> Maybe CallConv
-getDefaultCConv as = 
+getDefaultCConv as =
   case mapMb atParams (findAttribute "cconv" as) of
    Just [ParamLit (StringLit cc)] -> strToCallConv cc
    _			          -> Nothing
